@@ -1,0 +1,30 @@
+.back-button {
+  height: 35px;
+  margin-left: 10px;
+  cursor: pointer;
+  z-index: 10;
+}
+
+.market-wrapper {
+  position: relative;
+}
+
+.market-controls {
+  position: absolute;
+  z-index: 9;
+  top: 0;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.current-candle-data {
+    color: white;
+    display: flex;
+    gap: 8px;
+}
+
+.market-list-container {
+     position: relative;
+  width: 200px;
+}

@@ -1,0 +1,124 @@
+.home-wrapper {
+  background-color: #363636;
+  height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.black-background-img {
+  height: 95%;
+  width: 98%;
+  position: absolute;
+}
+
+.profile-button {
+  color: white;
+  position: absolute;
+  top: 5%;
+  right: 5%;
+  font-size: 35px;
+  font-weight: 400;
+  z-index: 2;
+  font-size: 25px;
+  background-color: transparent;
+  border: none;
+  cursor: pointer;
+}
+
+.home-title {
+  color: white;
+  position: absolute;
+  top: -3%;
+  text-align: center;
+  font-size: 35px;
+  font-weight: 400;
+  z-index: 2;
+}
+
+.home-title span {
+  font-size: 50px;
+  font-weight: 700;
+}
+
+.home-content-container {
+  position: relative;
+  color: white;
+  padding: 20px;
+  width: 90%;
+  height: 75%;
+  display: flex;
+  overflow-y: auto;
+  margin-top: 10%;
+}
+
+.home-quote {
+  font-weight: 600;
+  font-size: 50px;
+  margin: 0;
+}
+
+.home-content-left {
+  width: 50%;
+}
+
+.home-description {
+  font-weight: 400;
+  font-size: 20px;
+  margin: 0;
+  width: 80%;
+  margin-top: 25px;
+  line-height: 30px;
+}
+
+.dropdown-container {
+  position: relative;
+  width: 200px;
+  margin-top: 20px;
+}
+
+.dropdown-toggle {
+  width: 100%;
+  padding: 10px;
+  background-color: #f8f9fa;
+  border: 1px solid #ced4da;
+  border-radius: 20px;
+  text-align: center;
+  cursor: pointer;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.dropdown-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  width: 100%;
+  background-color: #ffffff;
+  border-top: none;
+  border-radius: 0 0 4px 4px;
+  padding: 0;
+  margin: 0;
+  max-height: 210px;
+  overflow-y: auto;
+  z-index: 1;
+  border-radius: 20px;
+  text-align: center;
+  font-weight: 600;
+  margin-top: 5px;
+}
+
+.dropdown-menu li {
+  padding: 7px;
+  cursor: pointer;
+  color: #393939;
+}
+
+.dropdown-menu li:hover {
+  background-color: #f8f9fa;
+}
+
+.home-decor-img {
+  height: 600px;
+  margin-top: -100px;
+}
