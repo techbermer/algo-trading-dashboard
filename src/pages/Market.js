@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { createChart, CrosshairMode } from "lightweight-charts";
+import { MACD } from "technicalindicators";
 import BackArrow from "../assets/icons/BackArrow.png";
 import { MARKET_OPTIONS } from "../constants/markets";
 import "../stylings/Market.css";
@@ -23,6 +24,7 @@ const Market = () => {
   const resizeObserver = useRef(null);
   const chartContainerRef = useRef(null);
   const candlestickSeries = useRef(null);
+  const macdSeries = useRef(null);
 
   const [feedData, setFeedData] = useState([]);
   const [isConnected, setIsConnected] = useState(false);
@@ -116,6 +118,15 @@ const Market = () => {
         wickDownColor: "#ef5350",
       });
 
+      macdSeries.current = chart.current.addHistogramSeries({
+        color: "#e1e1e1",
+        priceScaleId: "", // It will not interfere with the candlestick scale
+        scaleMargins: {
+          top: 0.85, // Push it down
+          bottom: 0,
+        },
+      });
+
       const initialData = await fetchIntradayCandleData();
       const sortedData = initialData.sort((a, b) => a.time - b.time);
       const lastCandle = sortedData[sortedData.length - 1];
@@ -126,6 +137,9 @@ const Market = () => {
         C: lastCandle.close,
       });
       candlestickSeries.current.setData(sortedData);
+
+      const macdData = calculateMACD(sortedData);
+      macdSeries.current.setData(macdData);
 
       resizeObserver.current = new ResizeObserver((entries) => {
         if (entries[0].target === chartContainerRef.current) {
@@ -153,6 +167,15 @@ const Market = () => {
       }
     };
   }, [token]);
+
+  useEffect(() => {
+    return () => {
+      if (resizeObserver.current && chartContainerRef.current) {
+        resizeObserver.current.unobserve(chartContainerRef.current);
+        resizeObserver.current = null;
+      }
+    };
+  }, []);
 
   const fetchIntradayCandleData = async () => {
     if (!token) return [];
@@ -274,6 +297,12 @@ const Market = () => {
       };
 
       websocket.current.onmessage = async (event) => {
+        if (
+          !websocket.current ||
+          websocket.current.readyState !== WebSocket.OPEN
+        ) {
+          return; // WebSocket has been closed or disposed
+        }
         const arrayBuffer = await blobToArrayBuffer(event.data);
         let buffer = Buffer.from(arrayBuffer);
         let response = decodeProfobuf(buffer);
@@ -399,6 +428,8 @@ const Market = () => {
               C: currentMinuteCandle.close,
             });
 
+            updateMACD(newCandle);
+
             return newCandle;
           } else {
             const updatedCandle = {
@@ -418,12 +449,47 @@ const Market = () => {
               C: updatedCandle.close,
             });
 
+            updateMACD(updatedCandle);
+
             return updatedCandle;
           }
         });
       } else {
         console.error("Minute OHLC data not found in response.");
       }
+    }
+  };
+
+  const updateMACD = (newCandle) => {
+    // Get the current candlestick data
+    const currentData = candlestickSeries.current.data();
+
+    // Add the new candle to the data
+    const updatedData = [...currentData, newCandle];
+
+    // Calculate MACD based on the updated data
+    const closePrices = updatedData.map((candle) => candle.close);
+
+    const macdInput = {
+      values: closePrices,
+      fastPeriod: 12,
+      slowPeriod: 26,
+      signalPeriod: 9,
+      SimpleMAOscillator: false,
+      SimpleMASignal: false,
+    };
+
+    const macdResult = MACD.calculate(macdInput);
+    const latestMACD = macdResult[macdResult.length - 1];
+
+    if (latestMACD) {
+      const macdHistogram = {
+        time: newCandle.time,
+        value: latestMACD.MACD - latestMACD.signal,
+        color: latestMACD.MACD >= latestMACD.signal ? "#26a69a" : "#ef5350",
+      };
+
+      macdSeries.current.update(macdHistogram);
     }
   };
 
@@ -517,6 +583,38 @@ const Market = () => {
         />
       </div>
     );
+  };
+
+  const calculateMACD = (data) => {
+    const closePrices = data.map((candle) => candle.close);
+    const macdInput = {
+      values: closePrices,
+      fastPeriod: 12,
+      slowPeriod: 26,
+      signalPeriod: 9,
+      SimpleMAOscillator: false,
+      SimpleMASignal: false,
+    };
+    const macd = MACD.calculate(macdInput);
+
+    return macd.map((value, index) => {
+      const histogram = value.MACD - value.signal;
+      const prevHistogram =
+        index > 0 ? macd[index - 1].MACD - macd[index - 1].signal : 0;
+
+      let color;
+      if (histogram >= 0) {
+        color = histogram > prevHistogram ? "#41A69A" : "#B7DFDB";
+      } else {
+        color = histogram > prevHistogram ? "#FBCDD2" : "#F5504E";
+      }
+
+      return {
+        time: data[index + 25].time,
+        value: histogram,
+        color: color,
+      };
+    });
   };
 
   return (
