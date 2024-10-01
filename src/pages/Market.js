@@ -92,204 +92,176 @@ const Market = () => {
     return res.data.authorizedRedirectUri;
   };
 
-  useEffect(() => {
-    const initializeCharts = async () => {
-      if (
-        !candlestickChartContainerRef.current ||
-        !macdChartContainerRef.current ||
-        !rsiChartContainerRef.current ||
-        !token
-      )
-        return;
+ useEffect(() => {
+   const initializeCharts = async () => {
+     if (
+       !candlestickChartContainerRef.current ||
+       !macdChartContainerRef.current ||
+       !rsiChartContainerRef.current ||
+       !token
+     )
+       return;
 
-      candlestickChart.current = createChart(
-        candlestickChartContainerRef.current,
-        {
-          width: candlestickChartContainerRef.current.clientWidth,
-          height: 400,
-          layout: {
-            background: { type: "solid", color: "#1E222D" },
-            textColor: "white",
-          },
-          grid: {
-            vertLines: { color: "#2B2B43" },
-            horzLines: { color: "#2B2B43" },
-          },
-          crosshair: {
-            mode: CrosshairMode.Normal,
-          },
-          rightPriceScale: {
-            visible: true,
-          },
-          timeScale: {
-            timeVisible: true,
-            secondsVisible: false,
-          },
-        }
-      );
+     const commonChartOptions = {
+       layout: {
+         background: { type: "solid", color: "#1E222D" },
+         textColor: "white",
+       },
+       grid: {
+         vertLines: { color: "#2B2B43" },
+         horzLines: { color: "#2B2B43" },
+       },
+       rightPriceScale: {
+         visible: true,
+         borderColor: "#2B2B43",
+         minimumWidth: 70, 
+       },
+       timeScale: {
+         timeVisible: true,
+         secondsVisible: false,
+         borderColor: "#2B2B43",
+       },
+     };
 
-      candlestickSeries.current = candlestickChart.current.addCandlestickSeries(
-        {
-          upColor: "#26a69a",
-          downColor: "#ef5350",
-          borderVisible: false,
-          wickUpColor: "#26a69a",
-          wickDownColor: "#ef5350",
-        }
-      );
+     candlestickChart.current = createChart(
+       candlestickChartContainerRef.current,
+       {
+         ...commonChartOptions,
+         width: candlestickChartContainerRef.current.clientWidth,
+         height: 400,
+         crosshair: {
+           mode: CrosshairMode.Normal,
+         },
+       }
+     );
 
-      macdChart.current = createChart(macdChartContainerRef.current, {
-        width: macdChartContainerRef.current.clientWidth,
-        height: 200,
-        layout: {
-          background: { type: "solid", color: "#1E222D" },
-          textColor: "white",
-        },
-        grid: {
-          vertLines: { color: "#2B2B43" },
-          horzLines: { color: "#2B2B43" },
-        },
-        rightPriceScale: {
-          visible: true,
-        },
-        timeScale: {
-          timeVisible: true,
-          secondsVisible: false,
-        },
-      });
+     candlestickSeries.current = candlestickChart.current.addCandlestickSeries({
+       upColor: "#26a69a",
+       downColor: "#ef5350",
+       borderVisible: false,
+       wickUpColor: "#26a69a",
+       wickDownColor: "#ef5350",
+     });
 
-      macdSeries.current = macdChart.current.addHistogramSeries({
-        color: "#26a69a",
-        priceFormat: {
-          type: "price",
-        },
-      });
+     macdChart.current = createChart(macdChartContainerRef.current, {
+       ...commonChartOptions,
+       width: macdChartContainerRef.current.clientWidth,
+       height: 200,
+     });
 
-      rsiChart.current = createChart(rsiChartContainerRef.current, {
-        width: rsiChartContainerRef.current.clientWidth,
-        height: 150,
-        layout: {
-          background: { type: "solid", color: "#1E222D" },
-          textColor: "white",
-        },
-        grid: {
-          vertLines: { color: "#2B2B43" },
-          horzLines: { color: "#2B2B43" },
-        },
-        rightPriceScale: {
-          visible: true,
-        },
-        timeScale: {
-          timeVisible: true,
-          secondsVisible: false,
-        },
-      });
+     macdSeries.current = macdChart.current.addHistogramSeries({
+       color: "#26a69a",
+       priceFormat: {
+         type: "price",
+       },
+     });
 
-      rsiSeries.current = rsiChart.current.addLineSeries({
-        color: "#2962FF",
-        lineWidth: 2,
-      });
+     rsiChart.current = createChart(rsiChartContainerRef.current, {
+       ...commonChartOptions,
+       width: rsiChartContainerRef.current.clientWidth,
+       height: 150,
+     });
 
-      const initialData = await fetchIntradayCandleData();
-      const sortedData = initialData.sort((a, b) => a.time - b.time);
-      const lastCandle = sortedData[sortedData.length - 1];
-      setCurrentCandle({
-        O: lastCandle.open,
-        H: lastCandle.high,
-        L: lastCandle.low,
-        C: lastCandle.close,
-      });
-      candlestickSeries.current.setData(sortedData);
+     rsiSeries.current = rsiChart.current.addLineSeries({
+       color: "#2962FF",
+       lineWidth: 2,
+     });
 
-      const macdData = calculateMACD(sortedData);
-      macdSeries.current.setData(macdData);
+     const initialData = await fetchIntradayCandleData();
+     const sortedData = initialData.sort((a, b) => a.time - b.time);
+     const lastCandle = sortedData[sortedData.length - 1];
+     setCurrentCandle({
+       O: lastCandle.open,
+       H: lastCandle.high,
+       L: lastCandle.low,
+       C: lastCandle.close,
+     });
+     candlestickSeries.current.setData(sortedData);
+     macdSeries.current.setData(calculateMACD(sortedData));
+     rsiSeries.current.setData(calculateRSI(sortedData));
 
-      const rsiData = calculateRSI(sortedData);
-      rsiSeries.current.setData(rsiData);
+     // Synchronize time scales
+     const syncTimeRange = (sourceChart) => {
+       const visibleRange = sourceChart?.timeScale()?.getVisibleRange();
+       macdChart.current?.timeScale()?.setVisibleRange(visibleRange);
+       rsiChart.current?.timeScale()?.setVisibleRange(visibleRange);
+       candlestickChart?.current?.timeScale()?.setVisibleRange(visibleRange);
+     };
 
-      macdChart.current.timeScale().subscribeVisibleTimeRangeChange(() => {
-        const macdTimeRange = macdChart.current.timeScale().getVisibleRange();
-        candlestickChart.current.timeScale().setVisibleRange(macdTimeRange);
-        rsiChart.current.timeScale().setVisibleRange(macdTimeRange);
-      });
+     // Subscribe to time scale changes
+     candlestickChart.current
+       .timeScale()
+       .subscribeVisibleTimeRangeChange(() => {
+         syncTimeRange(candlestickChart.current);
+       });
 
-      candlestickChart.current
-        .timeScale()
-        .subscribeVisibleTimeRangeChange(() => {
-          const candlestickTimeRange = candlestickChart.current
-            .timeScale()
-            .getVisibleRange();
-          macdChart.current.timeScale().setVisibleRange(candlestickTimeRange);
-          rsiChart.current.timeScale().setVisibleRange(candlestickTimeRange);
-        });
+     macdChart.current.timeScale().subscribeVisibleTimeRangeChange(() => {
+       syncTimeRange(macdChart.current);
+     });
 
-      rsiChart.current.timeScale().subscribeVisibleTimeRangeChange(() => {
-        const rsiTimeRange = rsiChart.current.timeScale().getVisibleRange();
-        candlestickChart.current.timeScale().setVisibleRange(rsiTimeRange);
-        macdChart.current.timeScale().setVisibleRange(rsiTimeRange);
-      });
+     rsiChart.current.timeScale().subscribeVisibleTimeRangeChange(() => {
+       syncTimeRange(rsiChart.current);
+     });
 
-      candlestickResizeObserver.current = new ResizeObserver((entries) => {
-        if (entries[0].target === candlestickChartContainerRef.current) {
-          const { width, height } = entries[0].contentRect;
-          candlestickChart.current.applyOptions({ width, height });
-        }
-      });
+     // Create ResizeObservers
+     const createResizeObserver = (chart, container) => {
+       return new ResizeObserver((entries) => {
+         if (entries[0].target === container) {
+           const { width, height } = entries[0].contentRect;
+           chart.applyOptions({ width, height });
+         }
+       });
+     };
 
-      macdResizeObserver.current = new ResizeObserver((entries) => {
-        if (entries[0].target === macdChartContainerRef.current) {
-          const { width, height } = entries[0].contentRect;
-          macdChart.current.applyOptions({ width, height });
-        }
-      });
+     // Assign the observers to the refs
+     candlestickResizeObserver.current = createResizeObserver(
+       candlestickChart.current,
+       candlestickChartContainerRef.current
+     );
+     macdResizeObserver.current = createResizeObserver(
+       macdChart.current,
+       macdChartContainerRef.current
+     );
+     rsiResizeObserver.current = createResizeObserver(
+       rsiChart.current,
+       rsiChartContainerRef.current
+     );
 
-      rsiResizeObserver.current = new ResizeObserver((entries) => {
-        if (entries[0].target === rsiChartContainerRef.current) {
-          const { width, height } = entries[0].contentRect;
-          rsiChart.current.applyOptions({ width, height });
-        }
-      });
+     // Observe the containers
+     candlestickResizeObserver.current.observe(
+       candlestickChartContainerRef.current
+     );
+     macdResizeObserver.current.observe(macdChartContainerRef.current);
+     rsiResizeObserver.current.observe(rsiChartContainerRef.current);
 
-      candlestickResizeObserver.current.observe(
-        candlestickChartContainerRef.current
-      );
-      macdResizeObserver.current.observe(macdChartContainerRef.current);
-      rsiResizeObserver.current.observe(rsiChartContainerRef.current);
+     // Initialize WebSocket
+     initializeWebSocket();
+   };
 
-      initializeWebSocket();
-    };
+   initializeCharts();
 
-    initializeCharts();
+   return () => {
+     // Cleanup
+     if (candlestickResizeObserver.current) {
+       candlestickResizeObserver.current.unobserve(
+         candlestickChartContainerRef.current
+       );
+     }
+     if (macdResizeObserver.current) {
+       macdResizeObserver.current.unobserve(macdChartContainerRef.current);
+     }
+     if (rsiResizeObserver.current) {
+       rsiResizeObserver.current.unobserve(rsiChartContainerRef.current);
+     }
+     candlestickChart.current?.remove();
+     macdChart.current?.remove();
+     rsiChart.current?.remove();
+     websocket.current?.close();
+   };
+ }, [token]);
 
-    return () => {
-      if (
-        candlestickResizeObserver.current &&
-        candlestickChartContainerRef.current
-      ) {
-        candlestickResizeObserver.current.unobserve(
-          candlestickChartContainerRef.current
-        );
-      }
-      if (macdResizeObserver.current && macdChartContainerRef.current) {
-        macdResizeObserver.current.unobserve(macdChartContainerRef.current);
-      }
-      if (rsiResizeObserver.current && rsiChartContainerRef.current) {
-        rsiResizeObserver.current.unobserve(rsiChartContainerRef.current);
-      }
-      if (candlestickChart.current) {
-        candlestickChart.current.remove();
-      }
-      if (macdChart.current) {
-        macdChart.current.remove();
-      }
-      if (rsiChart.current) {
-        rsiChart.current.remove();
-      }
-      if (websocket.current) {
-        websocket.current.close();
-      }
-    };
-  }, [token]);
+
+
 
   useEffect(() => {
     return () => {
