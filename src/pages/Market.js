@@ -1,9 +1,18 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { createChart, CrosshairMode } from "lightweight-charts";
-import { MACD, RSI } from "technicalindicators";
 import BackArrow from "../assets/icons/BackArrow.png";
 import { MARKET_OPTIONS } from "../constants/markets";
+import { getUrl } from "../utils/webSocket/webSocketUrl";
+import {
+  calculateRSI,
+  updateRSI,
+} from "../utils/analyticsFunctions/calculateRSI";
+import { calculateMACD , updateMACD} from "../utils/analyticsFunctions/calculateMACD";
+import {
+  decodeProfobuf,
+  blobToArrayBuffer,
+} from "../utils/protoBufferProcessor/protoBufferProcessors";
 import "../stylings/Market.css";
 import proto from "../../src/prot/MarketDataFeed.proto";
 import { Buffer } from "buffer";
@@ -30,6 +39,10 @@ const Market = () => {
   const candlestickResizeObserver = useRef(null);
   const candlestickChartContainerRef = useRef(null);
 
+  const [superTrendData, setSuperTrendData] = useState([]);
+  const upperBandSeries = useRef(null);
+  const lowerBandSeries = useRef(null);
+
   const rsiChart = useRef(null);
   const rsiSeries = useRef(null);
   const rsiResizeObserver = useRef(null);
@@ -54,214 +67,236 @@ const Market = () => {
     initProtobuf();
   }, []);
 
-  const blobToArrayBuffer = async (blob) => {
-    if ("arrayBuffer" in blob) return await blob.arrayBuffer();
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result);
-      reader.onerror = () => reject();
-      reader.readAsArrayBuffer(blob);
-    });
-  };
+  const calculateATR = (data, period = 10) => {
+    const trueRanges = [];
+    const atrs = [];
 
-  const decodeProfobuf = (buffer) => {
-    if (!protobufRoot) {
-      console.warn("Protobuf part not initialized yet!");
-      return null;
+    for (let i = 0; i < data.length; i++) {
+      if (i === 0) {
+        trueRanges.push(data[i].high - data[i].low);
+      } else {
+        const tr = Math.max(
+          data[i].high - data[i].low,
+          Math.abs(data[i].high - data[i - 1].close),
+          Math.abs(data[i].low - data[i - 1].close)
+        );
+        trueRanges.push(tr);
+      }
+
+      if (i < period) {
+        atrs.push(null);
+        continue;
+      }
+
+      if (i === period) {
+        atrs.push(
+          trueRanges.slice(0, period).reduce((sum, value) => sum + value, 0) /
+            period
+        );
+      } else {
+        atrs.push((atrs[i - 1] * (period - 1) + trueRanges[i]) / period);
+      }
     }
-    const FeedResponse = protobufRoot.lookupType(
-      "com.upstox.marketdatafeeder.rpc.proto.FeedResponse"
-    );
-    return FeedResponse.decode(buffer);
+
+    return atrs;
   };
 
-  const getUrl = async (token) => {
-    const apiUrl = "https://api-v2.upstox.com/feed/market-data-feed/authorize";
-    let headers = {
-      "Content-type": "application/json",
-      Authorization: "Bearer " + token,
+  useEffect(() => {
+    const initializeCharts = async () => {
+      if (
+        !candlestickChartContainerRef.current ||
+        !macdChartContainerRef.current ||
+        !rsiChartContainerRef.current ||
+        !token
+      )
+        return;
+
+      const commonChartOptions = {
+        layout: {
+          background: { type: "solid", color: "#1E222D" },
+          textColor: "white",
+        },
+        grid: {
+          vertLines: { color: "#2B2B43" },
+          horzLines: { color: "#2B2B43" },
+        },
+        rightPriceScale: {
+          visible: true,
+          borderColor: "#2B2B43",
+          minimumWidth: 70,
+        },
+        timeScale: {
+          timeVisible: true,
+          secondsVisible: false,
+          borderColor: "#2B2B43",
+        },
+      };
+
+      candlestickChart.current = createChart(
+        candlestickChartContainerRef.current,
+        {
+          ...commonChartOptions,
+          width: candlestickChartContainerRef.current.clientWidth,
+          height: 400,
+          crosshair: {
+            mode: CrosshairMode.Normal,
+          },
+        }
+      );
+
+      candlestickSeries.current = candlestickChart.current.addCandlestickSeries(
+        {
+          upColor: "#26a69a",
+          downColor: "#ef5350",
+          borderVisible: false,
+          wickUpColor: "#26a69a",
+          wickDownColor: "#ef5350",
+        }
+      );
+
+      macdChart.current = createChart(macdChartContainerRef.current, {
+        ...commonChartOptions,
+        width: macdChartContainerRef.current.clientWidth,
+        height: 200,
+      });
+
+      macdSeries.current = macdChart.current.addHistogramSeries({
+        color: "#26a69a",
+        priceFormat: {
+          type: "price",
+        },
+      });
+
+      rsiChart.current = createChart(rsiChartContainerRef.current, {
+        ...commonChartOptions,
+        width: rsiChartContainerRef.current.clientWidth,
+        height: 150,
+      });
+
+      rsiSeries.current = rsiChart.current.addLineSeries({
+        color: "#2962FF",
+        lineWidth: 2,
+      });
+
+      const initialData = await fetchIntradayCandleData();
+      const sortedData = initialData.sort((a, b) => a.time - b.time);
+      const lastCandle = sortedData[sortedData.length - 1];
+      setCurrentCandle({
+        O: lastCandle.open,
+        H: lastCandle.high,
+        L: lastCandle.low,
+        C: lastCandle.close,
+      });
+      candlestickSeries.current.setData(sortedData);
+      macdSeries.current.setData(calculateMACD(sortedData));
+      rsiSeries.current.setData(calculateRSI(sortedData));
+
+      // Calculate and set SuperTrend data
+      const superTrendResult = calculateSuperTrend(sortedData);
+      setSuperTrendData(superTrendResult);
+
+      upperBandSeries.current = candlestickChart.current.addLineSeries({
+        color: "rgba(76, 175, 80, 0.7)",
+        lineWidth: 1,
+      });
+
+      lowerBandSeries.current = candlestickChart.current.addLineSeries({
+        color: "rgba(255, 82, 82, 0.7)",
+        lineWidth: 1,
+      });
+
+      // Set SuperTrend data for upper and lower bands
+      const validUpperBandData = superTrendResult
+        .filter((item) => item.upper !== null)
+        .map((item) => ({ time: item.time, value: item.upper }));
+      const validLowerBandData = superTrendResult
+        .filter((item) => item.lower !== null)
+        .map((item) => ({ time: item.time, value: item.lower }));
+
+      upperBandSeries.current?.setData(validUpperBandData);
+      lowerBandSeries.current?.setData(validLowerBandData);
+
+      // Synchronize time scales
+      const syncTimeRange = (sourceChart) => {
+        const visibleRange = sourceChart?.timeScale()?.getVisibleRange();
+        macdChart.current?.timeScale()?.setVisibleRange(visibleRange);
+        rsiChart.current?.timeScale()?.setVisibleRange(visibleRange);
+        candlestickChart?.current?.timeScale()?.setVisibleRange(visibleRange);
+      };
+
+      // Subscribe to time scale changes
+      candlestickChart.current
+        .timeScale()
+        .subscribeVisibleTimeRangeChange(() => {
+          syncTimeRange(candlestickChart.current);
+        });
+
+      macdChart.current.timeScale().subscribeVisibleTimeRangeChange(() => {
+        syncTimeRange(macdChart.current);
+      });
+
+      rsiChart.current.timeScale().subscribeVisibleTimeRangeChange(() => {
+        syncTimeRange(rsiChart.current);
+      });
+
+      // Create ResizeObservers
+      const createResizeObserver = (chart, container) => {
+        return new ResizeObserver((entries) => {
+          if (entries[0].target === container) {
+            const { width, height } = entries[0].contentRect;
+            chart.applyOptions({ width, height });
+          }
+        });
+      };
+
+      // Assign the observers to the refs
+      candlestickResizeObserver.current = createResizeObserver(
+        candlestickChart.current,
+        candlestickChartContainerRef.current
+      );
+      macdResizeObserver.current = createResizeObserver(
+        macdChart.current,
+        macdChartContainerRef.current
+      );
+      rsiResizeObserver.current = createResizeObserver(
+        rsiChart.current,
+        rsiChartContainerRef.current
+      );
+
+      // Observe the containers
+      candlestickResizeObserver.current.observe(
+        candlestickChartContainerRef.current
+      );
+      macdResizeObserver.current.observe(macdChartContainerRef.current);
+      rsiResizeObserver.current.observe(rsiChartContainerRef.current);
+
+      // Initialize WebSocket
+      initializeWebSocket();
     };
-    const response = await fetch(apiUrl, {
-      method: "GET",
-      headers: headers,
-    });
-    if (!response.ok) {
-      throw new Error("Network response was not ok");
-    }
-    const res = await response.json();
-    return res.data.authorizedRedirectUri;
-  };
 
- useEffect(() => {
-   const initializeCharts = async () => {
-     if (
-       !candlestickChartContainerRef.current ||
-       !macdChartContainerRef.current ||
-       !rsiChartContainerRef.current ||
-       !token
-     )
-       return;
+    initializeCharts();
 
-     const commonChartOptions = {
-       layout: {
-         background: { type: "solid", color: "#1E222D" },
-         textColor: "white",
-       },
-       grid: {
-         vertLines: { color: "#2B2B43" },
-         horzLines: { color: "#2B2B43" },
-       },
-       rightPriceScale: {
-         visible: true,
-         borderColor: "#2B2B43",
-         minimumWidth: 70, 
-       },
-       timeScale: {
-         timeVisible: true,
-         secondsVisible: false,
-         borderColor: "#2B2B43",
-       },
-     };
+    return () => {
+      // Cleanup
+      if (candlestickResizeObserver.current) {
+        candlestickResizeObserver.current.unobserve(
+          candlestickChartContainerRef.current
+        );
+      }
+      if (macdResizeObserver.current) {
+        macdResizeObserver.current.unobserve(macdChartContainerRef.current);
+      }
 
-     candlestickChart.current = createChart(
-       candlestickChartContainerRef.current,
-       {
-         ...commonChartOptions,
-         width: candlestickChartContainerRef.current.clientWidth,
-         height: 400,
-         crosshair: {
-           mode: CrosshairMode.Normal,
-         },
-       }
-     );
+      if (rsiResizeObserver.current) {
+        rsiResizeObserver.current.unobserve(rsiChartContainerRef.current);
+      }
 
-     candlestickSeries.current = candlestickChart.current.addCandlestickSeries({
-       upColor: "#26a69a",
-       downColor: "#ef5350",
-       borderVisible: false,
-       wickUpColor: "#26a69a",
-       wickDownColor: "#ef5350",
-     });
-
-     macdChart.current = createChart(macdChartContainerRef.current, {
-       ...commonChartOptions,
-       width: macdChartContainerRef.current.clientWidth,
-       height: 200,
-     });
-
-     macdSeries.current = macdChart.current.addHistogramSeries({
-       color: "#26a69a",
-       priceFormat: {
-         type: "price",
-       },
-     });
-
-     rsiChart.current = createChart(rsiChartContainerRef.current, {
-       ...commonChartOptions,
-       width: rsiChartContainerRef.current.clientWidth,
-       height: 150,
-     });
-
-     rsiSeries.current = rsiChart.current.addLineSeries({
-       color: "#2962FF",
-       lineWidth: 2,
-     });
-
-     const initialData = await fetchIntradayCandleData();
-     const sortedData = initialData.sort((a, b) => a.time - b.time);
-     const lastCandle = sortedData[sortedData.length - 1];
-     setCurrentCandle({
-       O: lastCandle.open,
-       H: lastCandle.high,
-       L: lastCandle.low,
-       C: lastCandle.close,
-     });
-     candlestickSeries.current.setData(sortedData);
-     macdSeries.current.setData(calculateMACD(sortedData));
-     rsiSeries.current.setData(calculateRSI(sortedData));
-
-     // Synchronize time scales
-     const syncTimeRange = (sourceChart) => {
-       const visibleRange = sourceChart?.timeScale()?.getVisibleRange();
-       macdChart.current?.timeScale()?.setVisibleRange(visibleRange);
-       rsiChart.current?.timeScale()?.setVisibleRange(visibleRange);
-       candlestickChart?.current?.timeScale()?.setVisibleRange(visibleRange);
-     };
-
-     // Subscribe to time scale changes
-     candlestickChart.current
-       .timeScale()
-       .subscribeVisibleTimeRangeChange(() => {
-         syncTimeRange(candlestickChart.current);
-       });
-
-     macdChart.current.timeScale().subscribeVisibleTimeRangeChange(() => {
-       syncTimeRange(macdChart.current);
-     });
-
-     rsiChart.current.timeScale().subscribeVisibleTimeRangeChange(() => {
-       syncTimeRange(rsiChart.current);
-     });
-
-     // Create ResizeObservers
-     const createResizeObserver = (chart, container) => {
-       return new ResizeObserver((entries) => {
-         if (entries[0].target === container) {
-           const { width, height } = entries[0].contentRect;
-           chart.applyOptions({ width, height });
-         }
-       });
-     };
-
-     // Assign the observers to the refs
-     candlestickResizeObserver.current = createResizeObserver(
-       candlestickChart.current,
-       candlestickChartContainerRef.current
-     );
-     macdResizeObserver.current = createResizeObserver(
-       macdChart.current,
-       macdChartContainerRef.current
-     );
-     rsiResizeObserver.current = createResizeObserver(
-       rsiChart.current,
-       rsiChartContainerRef.current
-     );
-
-     // Observe the containers
-     candlestickResizeObserver.current.observe(
-       candlestickChartContainerRef.current
-     );
-     macdResizeObserver.current.observe(macdChartContainerRef.current);
-     rsiResizeObserver.current.observe(rsiChartContainerRef.current);
-
-     // Initialize WebSocket
-     initializeWebSocket();
-   };
-
-   initializeCharts();
-
-   return () => {
-     // Cleanup
-     if (candlestickResizeObserver.current) {
-       candlestickResizeObserver.current.unobserve(
-         candlestickChartContainerRef.current
-       );
-     }
-     if (macdResizeObserver.current) {
-       macdResizeObserver.current.unobserve(macdChartContainerRef.current);
-     }
-     if (rsiResizeObserver.current) {
-       rsiResizeObserver.current.unobserve(rsiChartContainerRef.current);
-     }
-     candlestickChart.current?.remove();
-     macdChart.current?.remove();
-     rsiChart.current?.remove();
-     websocket.current?.close();
-   };
- }, [token]);
-
-
-
+      candlestickChart.current?.remove();
+      macdChart.current?.remove();
+      rsiChart.current?.remove();
+      websocket.current?.close();
+    };
+  }, [token]);
 
   useEffect(() => {
     return () => {
@@ -400,7 +435,7 @@ const Market = () => {
         }
         const arrayBuffer = await blobToArrayBuffer(event.data);
         let buffer = Buffer?.from(arrayBuffer);
-        let response = decodeProfobuf(buffer);
+        let response = decodeProfobuf({ buffer, protobufRoot });
 
         const feeds = response.feeds;
         const nseIndexData = feeds[instrumentKey];
@@ -467,6 +502,8 @@ const Market = () => {
         setCurrent3MinCandle(null);
         setCurrentCandle(null);
         candlestickSeries.current.clear();
+        upperBandSeries.current.clear();
+        lowerBandSeries.current.clear();
         instrumentKey = feedKey;
       }
 
@@ -504,8 +541,9 @@ const Market = () => {
         };
 
         setCurrent3MinCandle((prev3MinCandle) => {
+          let updatedCandle;
           if (!prev3MinCandle || current3MinCandleStart > prev3MinCandle.time) {
-            const newCandle = {
+            updatedCandle = {
               time: current3MinCandleStart,
               open: currentMinuteCandle.open,
               high: currentMinuteCandle.high,
@@ -513,43 +551,50 @@ const Market = () => {
               close: currentMinuteCandle.close,
               volume: currentMinuteCandle.volume,
             };
-
-            candlestickSeries.current.update(newCandle);
-
-            setCurrentCandle({
-              O: currentMinuteCandle.open,
-              H: currentMinuteCandle.high,
-              L: currentMinuteCandle.low,
-              C: currentMinuteCandle.close,
-            });
-
-            updateMACD(newCandle);
-            updateRSI(newCandle);
-
-            return newCandle;
           } else {
-            const updatedCandle = {
+            updatedCandle = {
               ...prev3MinCandle,
               high: Math.max(prev3MinCandle.high, currentMinuteCandle.high),
               low: Math.min(prev3MinCandle.low, currentMinuteCandle.low),
               close: currentMinuteCandle.close,
               volume: prev3MinCandle.volume + currentMinuteCandle.volume,
             };
-
-            candlestickSeries.current.update(updatedCandle);
-
-            setCurrentCandle({
-              O: updatedCandle.open,
-              H: updatedCandle.high,
-              L: updatedCandle.low,
-              C: updatedCandle.close,
-            });
-
-            updateMACD(updatedCandle);
-            updateRSI(updatedCandle);
-
-            return updatedCandle;
           }
+
+          candlestickSeries.current.update(updatedCandle);
+
+          setCurrentCandle({
+            O: updatedCandle.open,
+            H: updatedCandle.high,
+            L: updatedCandle.low,
+            C: updatedCandle.close,
+          });
+
+          updateMACD({ updatedCandle, candlestickSeries, macdSeries });
+          updateRSI({ updatedCandle, candlestickSeries, rsiSeries });
+
+          // Update SuperTrend
+          const allCandles = candlestickSeries.current.data();
+          const updatedSuperTrend = calculateSuperTrend([
+            ...allCandles,
+            updatedCandle,
+          ]);
+          setSuperTrendData(updatedSuperTrend);
+
+          const latestSuperTrend =
+            updatedSuperTrend[updatedSuperTrend.length - 1];
+          if (latestSuperTrend) {
+            upperBandSeries.current.update({
+              time: latestSuperTrend.time,
+              value: latestSuperTrend.upper,
+            });
+            lowerBandSeries.current.update({
+              time: latestSuperTrend.time,
+              value: latestSuperTrend.lower,
+            });
+          }
+
+          return updatedCandle;
         });
       } else {
         console.error("Minute OHLC data not found in response.");
@@ -557,69 +602,49 @@ const Market = () => {
     }
   };
 
-  const calculateRSI = (data) => {
-    const closePrices = data.map((candle) => candle.close);
-    const rsiPeriod = 14;
-    const rsiValues = RSI.calculate({
-      values: closePrices,
-      period: rsiPeriod,
-    });
+  // Helper function to calculate SuperTrend
+  const calculateSuperTrend = (data, period = 10, multiplier = 3) => {
+    const atr = calculateATR(data, period);
+    const superTrend = [];
 
-    return rsiValues.map((value, index) => ({
-      time: data[index + rsiPeriod - 1].time,
-      value: value,
-    }));
-  };
+    for (let i = 0; i < data.length; i++) {
+      if (i < period) {
+        superTrend.push({ time: data[i].time, upper: null, lower: null });
+        continue;
+      }
 
-  const updateRSI = (newCandle) => {
-    const currentData = candlestickSeries.current.data();
-    const updatedData = [...currentData, newCandle];
-    const closePrices = updatedData.map((candle) => candle.close);
+      const highLow = (data[i].high + data[i].low) / 2;
+      const basicUpperBand = highLow + multiplier * atr[i - period];
+      const basicLowerBand = highLow - multiplier * atr[i - period];
 
-    const rsiPeriod = 14;
-    const rsiValues = RSI.calculate({
-      values: closePrices,
-      period: rsiPeriod,
-    });
+      let finalUpperBand, finalLowerBand;
 
-    const latestRSI = rsiValues[rsiValues.length - 1];
+      if (i === period) {
+        finalUpperBand = basicUpperBand;
+        finalLowerBand = basicLowerBand;
+      } else {
+        finalUpperBand =
+          basicUpperBand < superTrend[i - 1].upper ||
+          data[i - 1].close > superTrend[i - 1].upper
+            ? basicUpperBand
+            : superTrend[i - 1].upper;
 
-    if (latestRSI) {
-      rsiSeries.current.update({
-        time: newCandle.time,
-        value: latestRSI,
+        finalLowerBand =
+          basicLowerBand > superTrend[i - 1].lower ||
+          data[i - 1].close < superTrend[i - 1].lower
+            ? basicLowerBand
+            : superTrend[i - 1].lower;
+      }
+
+      superTrend.push({
+        time: data[i].time,
+        upper: finalUpperBand,
+        lower: finalLowerBand,
+        trend: data[i].close > finalUpperBand ? "down" : "up",
       });
     }
-  };
 
-  const updateMACD = (newCandle) => {
-    const currentData = candlestickSeries.current.data();
-
-    const updatedData = [...currentData, newCandle];
-
-    const closePrices = updatedData.map((candle) => candle.close);
-
-    const macdInput = {
-      values: closePrices,
-      fastPeriod: 12,
-      slowPeriod: 26,
-      signalPeriod: 9,
-      SimpleMAOscillator: false,
-      SimpleMASignal: false,
-    };
-
-    const macdResult = MACD.calculate(macdInput);
-    const latestMACD = macdResult[macdResult.length - 1];
-
-    if (latestMACD) {
-      const macdHistogram = {
-        time: newCandle.time,
-        value: latestMACD.MACD - latestMACD.signal,
-        color: latestMACD.MACD >= latestMACD.signal ? "#26a69a" : "#ef5350",
-      };
-
-      macdSeries.current.update(macdHistogram);
-    }
+    return superTrend;
   };
 
   useEffect(() => {
@@ -714,38 +739,6 @@ const Market = () => {
     );
   };
 
-  const calculateMACD = (data) => {
-    const closePrices = data.map((candle) => candle.close);
-    const macdInput = {
-      values: closePrices,
-      fastPeriod: 12,
-      slowPeriod: 26,
-      signalPeriod: 9,
-      SimpleMAOscillator: false,
-      SimpleMASignal: false,
-    };
-    const macd = MACD.calculate(macdInput);
-
-    return macd.map((value, index) => {
-      const histogram = value.MACD - value.signal;
-      const prevHistogram =
-        index > 0 ? macd[index - 1].MACD - macd[index - 1].signal : 0;
-
-      let color;
-      if (histogram >= 0) {
-        color = histogram > prevHistogram ? "#41A69A" : "#B7DFDB";
-      } else {
-        color = histogram > prevHistogram ? "#FBCDD2" : "#F5504E";
-      }
-
-      return {
-        time: data[index + 25].time,
-        value: histogram,
-        color: color,
-      };
-    });
-  };
-
   return (
     <div className="market-wrapper">
       <div className="market-controls">
@@ -780,6 +773,15 @@ const Market = () => {
       <div ref={candlestickChartContainerRef} className="chart-container" />
       <div ref={macdChartContainerRef} className="chart-container" />
       <div ref={rsiChartContainerRef} className="chart-container" />
+
+      {superTrendData.length > 0 && (
+        <div className="supertrend-info">
+        
+          <p>
+            Current Trend: {superTrendData[superTrendData.length - 1].trend}
+          </p>
+        </div>
+      )}
     </div>
   );
 };
