@@ -4,15 +4,9 @@ import { createChart, CrosshairMode } from "lightweight-charts";
 import BackArrow from "../assets/icons/BackArrow.png";
 import { MARKET_OPTIONS } from "../constants/markets";
 import { getUrl } from "../utils/webSocket/webSocketUrl";
-import {
-  calculateRSI,
-  updateRSI,
-} from "../utils/analyticsFunctions/calculateRSI";
-import { calculateMACD , updateMACD} from "../utils/analyticsFunctions/calculateMACD";
-import {
-  decodeProfobuf,
-  blobToArrayBuffer,
-} from "../utils/protoBufferProcessor/protoBufferProcessors";
+import { calculateRSI, updateRSI } from "../utils/analyticsFunctions/calculateRSI";
+import { calculateMACD, updateMACD } from "../utils/analyticsFunctions/calculateMACD";
+import { decodeProfobuf, blobToArrayBuffer } from "../utils/protoBufferProcessor/protoBufferProcessors";
 import "../stylings/Market.css";
 import proto from "../../src/prot/MarketDataFeed.proto";
 import { Buffer } from "buffer";
@@ -27,19 +21,19 @@ const Market = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { token } = location.state || {};
-
   const websocket = useRef(null);
+  const resizeObserver = useRef(null);
+
   const macdChart = useRef(null);
   const macdSeries = useRef(null);
-  const resizeObserver = useRef(null);
-  const candlestickChart = useRef(null);
-  const candlestickSeries = useRef(null);
   const macdResizeObserver = useRef(null);
   const macdChartContainerRef = useRef(null);
+
+  const candlestickChart = useRef(null);
+  const candlestickSeries = useRef(null);
   const candlestickResizeObserver = useRef(null);
   const candlestickChartContainerRef = useRef(null);
 
-  const [superTrendData, setSuperTrendData] = useState([]);
   const upperBandSeries = useRef(null);
   const lowerBandSeries = useRef(null);
 
@@ -48,7 +42,6 @@ const Market = () => {
   const rsiResizeObserver = useRef(null);
   const rsiChartContainerRef = useRef(null);
 
-  const [feedData, setFeedData] = useState([]);
   const [isConnected, setIsConnected] = useState(false);
   const [currentCandle, setCurrentCandle] = useState(null);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -191,32 +184,42 @@ const Market = () => {
       macdSeries.current.setData(calculateMACD(sortedData));
       rsiSeries.current.setData(calculateRSI(sortedData));
 
-      // Calculate and set SuperTrend data
       const superTrendResult = calculateSuperTrend(sortedData);
-      setSuperTrendData(superTrendResult);
 
       upperBandSeries.current = candlestickChart.current.addLineSeries({
-        color: "rgba(76, 175, 80, 0.7)",
-        lineWidth: 1,
-      });
-
-      lowerBandSeries.current = candlestickChart.current.addLineSeries({
         color: "rgba(255, 82, 82, 0.7)",
         lineWidth: 1,
       });
 
-      // Set SuperTrend data for upper and lower bands
+      lowerBandSeries.current = candlestickChart.current.addLineSeries({
+        color: "rgba(76, 175, 80, 0.7)",
+        lineWidth: 1,
+      });
+
       const validUpperBandData = superTrendResult
-        .filter((item) => item.upper !== null)
+        .filter((item) => item.upper !== null && item.trend === "down")
         .map((item) => ({ time: item.time, value: item.upper }));
+
       const validLowerBandData = superTrendResult
-        .filter((item) => item.lower !== null)
+        .filter((item) => item.lower !== null && item.trend === "up")
         .map((item) => ({ time: item.time, value: item.lower }));
 
-      upperBandSeries.current?.setData(validUpperBandData);
-      lowerBandSeries.current?.setData(validLowerBandData);
+      console.log(validLowerBandData);
 
-      // Synchronize time scales
+      if (validUpperBandData.length > 0) {
+        upperBandSeries.current.setData(validUpperBandData);
+        upperBandSeries.current.applyOptions({ visible: true });
+      } else {
+        upperBandSeries.current.applyOptions({ visible: false });
+      }
+
+      if (validLowerBandData.length > 0) {
+        lowerBandSeries.current.setData(validLowerBandData);
+        lowerBandSeries.current.applyOptions({ visible: true });
+      } else {
+        lowerBandSeries.current.applyOptions({ visible: false });
+      }
+
       const syncTimeRange = (sourceChart) => {
         const visibleRange = sourceChart?.timeScale()?.getVisibleRange();
         macdChart.current?.timeScale()?.setVisibleRange(visibleRange);
@@ -224,7 +227,6 @@ const Market = () => {
         candlestickChart?.current?.timeScale()?.setVisibleRange(visibleRange);
       };
 
-      // Subscribe to time scale changes
       candlestickChart.current
         .timeScale()
         .subscribeVisibleTimeRangeChange(() => {
@@ -239,7 +241,6 @@ const Market = () => {
         syncTimeRange(rsiChart.current);
       });
 
-      // Create ResizeObservers
       const createResizeObserver = (chart, container) => {
         return new ResizeObserver((entries) => {
           if (entries[0].target === container) {
@@ -249,7 +250,6 @@ const Market = () => {
         });
       };
 
-      // Assign the observers to the refs
       candlestickResizeObserver.current = createResizeObserver(
         candlestickChart.current,
         candlestickChartContainerRef.current
@@ -263,21 +263,18 @@ const Market = () => {
         rsiChartContainerRef.current
       );
 
-      // Observe the containers
       candlestickResizeObserver.current.observe(
         candlestickChartContainerRef.current
       );
       macdResizeObserver.current.observe(macdChartContainerRef.current);
       rsiResizeObserver.current.observe(rsiChartContainerRef.current);
 
-      // Initialize WebSocket
       initializeWebSocket();
     };
 
     initializeCharts();
 
     return () => {
-      // Cleanup
       if (candlestickResizeObserver.current) {
         candlestickResizeObserver.current.unobserve(
           candlestickChartContainerRef.current
@@ -445,11 +442,6 @@ const Market = () => {
           cp = nseIndexData.ff.indexFF.ltpc["ltp"];
         }
 
-        setFeedData((currentData) => [
-          ...currentData,
-          JSON.stringify(response),
-        ]);
-
         handleMarketData(response);
       };
 
@@ -573,26 +565,7 @@ const Market = () => {
           updateMACD({ updatedCandle, candlestickSeries, macdSeries });
           updateRSI({ updatedCandle, candlestickSeries, rsiSeries });
 
-          // Update SuperTrend
-          const allCandles = candlestickSeries.current.data();
-          const updatedSuperTrend = calculateSuperTrend([
-            ...allCandles,
-            updatedCandle,
-          ]);
-          setSuperTrendData(updatedSuperTrend);
-
-          const latestSuperTrend =
-            updatedSuperTrend[updatedSuperTrend.length - 1];
-          if (latestSuperTrend) {
-            upperBandSeries.current.update({
-              time: latestSuperTrend.time,
-              value: latestSuperTrend.upper,
-            });
-            lowerBandSeries.current.update({
-              time: latestSuperTrend.time,
-              value: latestSuperTrend.lower,
-            });
-          }
+          updateSuperTrend(updatedCandle);
 
           return updatedCandle;
         });
@@ -602,14 +575,46 @@ const Market = () => {
     }
   };
 
-  // Helper function to calculate SuperTrend
+  const updateSuperTrend = (updatedCandle) => {
+    const allCandles = candlestickSeries.current.data();
+    const updatedSuperTrend = calculateSuperTrend([
+      ...allCandles,
+      updatedCandle,
+    ]);
+
+    const latestSuperTrend = updatedSuperTrend[updatedSuperTrend.length - 1];
+    if (latestSuperTrend) {
+      upperBandSeries.current.update({
+        time: latestSuperTrend.time,
+        value: latestSuperTrend.upper,
+      });
+      upperBandSeries.current.applyOptions({
+        visible: latestSuperTrend.trend === "down",
+      });
+
+      lowerBandSeries.current.update({
+        time: latestSuperTrend.time,
+        value: latestSuperTrend.lower,
+      });
+      lowerBandSeries.current.applyOptions({
+        visible: latestSuperTrend.trend === "up",
+      });
+    }
+  };
+
   const calculateSuperTrend = (data, period = 10, multiplier = 3) => {
     const atr = calculateATR(data, period);
     const superTrend = [];
+    let currentTrend = "up";
 
     for (let i = 0; i < data.length; i++) {
       if (i < period) {
-        superTrend.push({ time: data[i].time, upper: null, lower: null });
+        superTrend.push({
+          time: data[i].time,
+          upper: null,
+          lower: null,
+          trend: currentTrend,
+        });
         continue;
       }
 
@@ -636,11 +641,17 @@ const Market = () => {
             : superTrend[i - 1].lower;
       }
 
+      if (currentTrend === "down" && data[i].close > finalUpperBand) {
+        currentTrend = "up";
+      } else if (currentTrend === "up" && data[i].close < finalLowerBand) {
+        currentTrend = "down";
+      }
+
       superTrend.push({
         time: data[i].time,
         upper: finalUpperBand,
         lower: finalLowerBand,
-        trend: data[i].close > finalUpperBand ? "down" : "up",
+        trend: currentTrend,
       });
     }
 
@@ -773,15 +784,6 @@ const Market = () => {
       <div ref={candlestickChartContainerRef} className="chart-container" />
       <div ref={macdChartContainerRef} className="chart-container" />
       <div ref={rsiChartContainerRef} className="chart-container" />
-
-      {superTrendData.length > 0 && (
-        <div className="supertrend-info">
-        
-          <p>
-            Current Trend: {superTrendData[superTrendData.length - 1].trend}
-          </p>
-        </div>
-      )}
     </div>
   );
 };
