@@ -1,9 +1,8 @@
-// src/App.js
 import { BrowserRouter as Router, Route, Routes } from "react-router-dom";
 import Login from "./pages/Login";
 import Market from "./pages/Market";
 import Home from "./pages/Home";
-import ErrorBoundary from "./components/ErrorBoundary";
+import ErrorBoundary from "./errorHandler/ErrorBoundary";
 
 const App = () => {
   return (

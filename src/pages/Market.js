@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { createChart, CrosshairMode } from "lightweight-charts";
 import BackArrow from "../assets/icons/BackArrow.png";
 import { MARKET_OPTIONS } from "../constants/markets";
+import { CurrentCandleData } from "../components/CurrentCandleData";
 import { getUrl } from "../utils/webSocket/webSocketUrl";
 import { calculateRSI, updateRSI } from "../utils/analyticsFunctions/calculateRSI";
 import { calculateMACD, updateMACD } from "../utils/analyticsFunctions/calculateMACD";
@@ -707,48 +708,6 @@ const Market = () => {
       cleanupWebSocket();
     };
   }, [instrumentKey]);
-
-  const CandleDataRow = ({ keyName, value, isBullish }) => (
-    <p>
-      <span style={{ color: "white" }}>{keyName}:</span>{" "}
-      <span
-        style={{
-          color: isBullish ? "#26a69a" : "#ef5350",
-        }}
-      >
-        {value?.toLocaleString("en-IN")}
-      </span>
-    </p>
-  );
-
-  const CurrentCandleData = ({ currentCandle }) => {
-    const isBullish = currentCandle?.C > currentCandle?.O;
-
-    return (
-      <div className="current-candle-data">
-        <CandleDataRow
-          keyName="O"
-          value={currentCandle?.O}
-          isBullish={isBullish}
-        />
-        <CandleDataRow
-          keyName="H"
-          value={currentCandle?.H}
-          isBullish={isBullish}
-        />
-        <CandleDataRow
-          keyName="L"
-          value={currentCandle?.L}
-          isBullish={isBullish}
-        />
-        <CandleDataRow
-          keyName="C"
-          value={currentCandle?.C}
-          isBullish={isBullish}
-        />
-      </div>
-    );
-  };
 
   return (
     <div className="market-wrapper">
