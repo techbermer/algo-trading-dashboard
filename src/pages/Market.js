@@ -5,9 +5,18 @@ import BackArrow from "../assets/icons/BackArrow.png";
 import { MARKET_OPTIONS } from "../constants/markets";
 import { CurrentCandleData } from "../components/CurrentCandleData";
 import { getUrl } from "../utils/webSocket/webSocketUrl";
-import { calculateRSI, updateRSI } from "../utils/analyticsFunctions/calculateRSI";
-import { calculateMACD, updateMACD } from "../utils/analyticsFunctions/calculateMACD";
-import { decodeProfobuf, blobToArrayBuffer } from "../utils/protoBufferProcessor/protoBufferProcessors";
+import {
+  calculateRSI,
+  updateRSI,
+} from "../utils/analyticsFunctions/calculateRSI";
+import {
+  calculateMACD,
+  updateMACD,
+} from "../utils/analyticsFunctions/calculateMACD";
+import {
+  decodeProfobuf,
+  blobToArrayBuffer,
+} from "../utils/protoBufferProcessor/protoBufferProcessors";
 import "../stylings/Market.css";
 import proto from "../../src/prot/MarketDataFeed.proto";
 import { Buffer } from "buffer";
@@ -222,10 +231,32 @@ const Market = () => {
       }
 
       const syncTimeRange = (sourceChart) => {
-        const visibleRange = sourceChart?.timeScale()?.getVisibleRange();
-        macdChart.current?.timeScale()?.setVisibleRange(visibleRange);
-        rsiChart.current?.timeScale()?.setVisibleRange(visibleRange);
-        candlestickChart?.current?.timeScale()?.setVisibleRange(visibleRange);
+        if (!sourceChart || !sourceChart.timeScale()) {
+          console.warn("Source chart or its time scale is not available");
+          return;
+        }
+
+        const visibleRange = sourceChart.timeScale().getVisibleRange();
+        if (!visibleRange) {
+          console.warn("Visible range is not available");
+          return;
+        }
+
+        const charts = [
+          candlestickChart.current,
+          macdChart.current,
+          rsiChart.current,
+        ];
+
+        charts.forEach((chart) => {
+          if (chart && chart.timeScale()) {
+            try {
+              chart.timeScale().setVisibleRange(visibleRange);
+            } catch (error) {
+              console.error("Error setting visible range for chart:", error);
+            }
+          }
+        });
       };
 
       candlestickChart.current
