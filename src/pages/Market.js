@@ -105,83 +105,110 @@ const Market = () => {
   };
 
   useEffect(() => {
-    const initializeCharts = async () => {
-      if (
-        !candlestickChartContainerRef.current ||
-        !macdChartContainerRef.current ||
-        !rsiChartContainerRef.current ||
-        !token
-      )
-        return;
+    initializeCharts();
 
-      const commonChartOptions = {
-        layout: {
-          background: { type: "solid", color: "#1E222D" },
-          textColor: "white",
-        },
-        grid: {
-          vertLines: { color: "#2B2B43" },
-          horzLines: { color: "#2B2B43" },
-        },
-        rightPriceScale: {
-          visible: true,
-          borderColor: "#2B2B43",
-          minimumWidth: 70,
-        },
-        timeScale: {
-          timeVisible: true,
-          secondsVisible: false,
-          borderColor: "#2B2B43",
-        },
-      };
+    return () => {
+      if (candlestickResizeObserver.current) {
+        candlestickResizeObserver.current.unobserve(
+          candlestickChartContainerRef.current
+        );
+      }
+      if (macdResizeObserver.current) {
+        macdResizeObserver.current.unobserve(macdChartContainerRef.current);
+      }
+      if (rsiResizeObserver.current) {
+        rsiResizeObserver.current.unobserve(rsiChartContainerRef.current);
+      }
 
-      candlestickChart.current = createChart(
-        candlestickChartContainerRef.current,
-        {
-          ...commonChartOptions,
-          width: candlestickChartContainerRef.current.clientWidth,
-          height: 400,
-          crosshair: {
-            mode: CrosshairMode.Normal,
-          },
-        }
-      );
+      candlestickChart.current?.remove();
+      macdChart.current?.remove();
+      rsiChart.current?.remove();
+      websocket.current?.close();
+    };
+  }, [token]);
 
-      candlestickSeries.current = candlestickChart.current.addCandlestickSeries(
-        {
-          upColor: "#26a69a",
-          downColor: "#ef5350",
-          borderVisible: false,
-          wickUpColor: "#26a69a",
-          wickDownColor: "#ef5350",
-        }
-      );
+  const initializeCharts = async () => {
+    if (
+      !candlestickChartContainerRef.current ||
+      !macdChartContainerRef.current ||
+      !rsiChartContainerRef.current ||
+      !token
+    )
+      return;
 
-      macdChart.current = createChart(macdChartContainerRef.current, {
+    const commonChartOptions = {
+      layout: {
+        background: { type: "solid", color: "#1E222D" },
+        textColor: "white",
+      },
+      grid: {
+        vertLines: { color: "#2B2B43" },
+        horzLines: { color: "#2B2B43" },
+      },
+      rightPriceScale: {
+        visible: true,
+        borderColor: "#2B2B43",
+        minimumWidth: 70,
+      },
+      timeScale: {
+        timeVisible: true,
+        secondsVisible: false,
+        borderColor: "#2B2B43",
+      },
+    };
+
+    candlestickChart.current = createChart(
+      candlestickChartContainerRef.current,
+      {
         ...commonChartOptions,
-        width: macdChartContainerRef.current.clientWidth,
-        height: 200,
-      });
-
-      macdSeries.current = macdChart.current.addHistogramSeries({
-        color: "#26a69a",
-        priceFormat: {
-          type: "price",
+        width: candlestickChartContainerRef.current.clientWidth,
+        height: 400,
+        crosshair: {
+          mode: CrosshairMode.Normal,
         },
-      });
+      }
+    );
 
-      rsiChart.current = createChart(rsiChartContainerRef.current, {
-        ...commonChartOptions,
-        width: rsiChartContainerRef.current.clientWidth,
-        height: 150,
-      });
+    candlestickSeries.current = candlestickChart.current.addCandlestickSeries({
+      upColor: "#26a69a",
+      downColor: "#ef5350",
+      borderVisible: false,
+      wickUpColor: "#26a69a",
+      wickDownColor: "#ef5350",
+    });
 
-      rsiSeries.current = rsiChart.current.addLineSeries({
-        color: "#2962FF",
-        lineWidth: 2,
-      });
+    macdChart.current = createChart(macdChartContainerRef.current, {
+      ...commonChartOptions,
+      width: macdChartContainerRef.current.clientWidth,
+      height: 200,
+    });
 
+    macdSeries.current = macdChart.current.addHistogramSeries({
+      color: "#26a69a",
+      priceFormat: {
+        type: "price",
+      },
+    });
+
+    rsiChart.current = createChart(rsiChartContainerRef.current, {
+      ...commonChartOptions,
+      width: rsiChartContainerRef.current.clientWidth,
+      height: 150,
+    });
+
+    rsiSeries.current = rsiChart.current.addLineSeries({
+      color: "#2962FF",
+      lineWidth: 2,
+    });
+
+    try {
       const initialData = await fetchIntradayCandleData();
+
+      if (!initialData || initialData.length === 0) {
+        console.error("No initial data received");
+        return;
+      }
+
       const sortedData = initialData.sort((a, b) => a.time - b.time);
       const lastCandle = sortedData[sortedData.length - 1];
       setCurrentCandle({
@@ -190,6 +217,7 @@ const Market = () => {
         L: lastCandle.low,
         C: lastCandle.close,
       });
+
       candlestickSeries.current.setData(sortedData);
       macdSeries.current.setData(calculateMACD(sortedData));
       rsiSeries.current.setData(calculateRSI(sortedData));
@@ -214,8 +242,6 @@ const Market = () => {
         .filter((item) => item.lower !== null && item.trend === "up")
         .map((item) => ({ time: item.time, value: item.lower }));
 
-      console.log(validLowerBandData);
-
       if (validUpperBandData.length > 0) {
         upperBandSeries.current.setData(validUpperBandData);
         upperBandSeries.current.applyOptions({ visible: true });
@@ -236,7 +262,14 @@ const Market = () => {
           return;
         }
 
-        const visibleRange = sourceChart.timeScale().getVisibleRange();
+        let visibleRange;
+        try {
+          visibleRange = sourceChart.timeScale().getVisibleRange();
+        } catch (error) {
+          console.warn("Error getting visible range:", error);
+          return;
+        }
+
         if (!visibleRange) {
           console.warn("Visible range is not available");
           return;
@@ -251,7 +284,14 @@ const Market = () => {
         charts.forEach((chart) => {
           if (chart && chart.timeScale()) {
             try {
-              chart.timeScale().setVisibleRange(visibleRange);
+              // Check if the chart has data before setting the visible range
+              if (chart.timeScale().getVisibleLogicalRange()) {
+                chart.timeScale().setVisibleRange(visibleRange);
+              } else {
+                console.warn(
+                  "Chart has no visible data, skipping synchronization"
+                );
+              }
             } catch (error) {
               console.error("Error setting visible range for chart:", error);
             }
@@ -259,19 +299,29 @@ const Market = () => {
         });
       };
 
-      candlestickChart.current
-        .timeScale()
-        .subscribeVisibleTimeRangeChange(() => {
-          syncTimeRange(candlestickChart.current);
+      const setupChartSubscriptions = () => {
+        const charts = [
+          candlestickChart.current,
+          macdChart.current,
+          rsiChart.current,
+        ];
+
+        charts.forEach((chart) => {
+          if (chart && chart.timeScale()) {
+            chart.timeScale().subscribeVisibleTimeRangeChange(() => {
+              // Add a small delay to ensure chart is ready
+              setTimeout(() => syncTimeRange(chart), 50);
+            });
+          }
         });
+      };
 
-      macdChart.current.timeScale().subscribeVisibleTimeRangeChange(() => {
-        syncTimeRange(macdChart.current);
-      });
-
-      rsiChart.current.timeScale().subscribeVisibleTimeRangeChange(() => {
-        syncTimeRange(rsiChart.current);
-      });
+      // Delay the initial setup to ensure charts are fully initialized
+      setTimeout(() => {
+        setupChartSubscriptions();
+        // Perform an initial synchronization
+        syncTimeRange(candlestickChart.current);
+      }, 100);
 
       const createResizeObserver = (chart, container) => {
         return new ResizeObserver((entries) => {
@@ -302,30 +352,10 @@ const Market = () => {
       rsiResizeObserver.current.observe(rsiChartContainerRef.current);
 
       initializeWebSocket();
-    };
-
-    initializeCharts();
-
-    return () => {
-      if (candlestickResizeObserver.current) {
-        candlestickResizeObserver.current.unobserve(
-          candlestickChartContainerRef.current
-        );
-      }
-      if (macdResizeObserver.current) {
-        macdResizeObserver.current.unobserve(macdChartContainerRef.current);
-      }
-
-      if (rsiResizeObserver.current) {
-        rsiResizeObserver.current.unobserve(rsiChartContainerRef.current);
-      }
-
-      candlestickChart.current?.remove();
-      macdChart.current?.remove();
-      rsiChart.current?.remove();
-      websocket.current?.close();
-    };
-  }, [token]);
+    } catch (error) {
+      console.error("Error initializing charts:", error);
+    }
+  };
 
   useEffect(() => {
     return () => {
