@@ -1,23 +1,63 @@
-import { BrowserRouter as Router, Route, Routes } from "react-router-dom";
+import {
+  BrowserRouter as Router,
+  Route,
+  Routes,
+  Navigate,
+} from "react-router-dom";
+import { useState, useEffect } from "react";
 import Login from "./pages/Login";
 import Market from "./pages/Market";
 import Home from "./pages/Home";
 import ErrorBoundary from "./errorHandler/ErrorBoundary";
 
 const App = () => {
+  const [isLoggedIn, setIsLoggedIn] = useState(null);
+
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    if (token) {
+      setIsLoggedIn(true);
+    } else {
+      setIsLoggedIn(false);
+    }
+  }, []);
+
+  const handleLogin = (token) => {
+    setIsLoggedIn(true);
+    localStorage.setItem("token", token);
+  };
+
+  const handleLogout = () => {
+    setIsLoggedIn(false);
+    localStorage.removeItem("token");
+  };
+
+  if (isLoggedIn === null) {
+    return <div>Loading...</div>;
+  }
+
   return (
     <Router style={styles.container}>
       <Routes>
-        <Route path="/" element={<Home />} />
-        <Route path="/login" element={<Login />} />
-        <Route
-          path="/market"
-          element={
-            <ErrorBoundary>
-              <Market />
-            </ErrorBoundary>
-          }
-        />
+        {isLoggedIn ? (
+          <>
+            <Route path="/" element={<Home onLogout={handleLogout} />} />
+            <Route
+              path="/market"
+              element={
+                <ErrorBoundary>
+                  <Market />
+                </ErrorBoundary>
+              }
+            />
+            <Route path="*" element={<Navigate to="/" />} />
+          </>
+        ) : (
+          <>
+            <Route path="/login" element={<Login onLogin={handleLogin} />} />
+            <Route path="*" element={<Navigate to="/login" />} />
+          </>
+        )}
       </Routes>
     </Router>
   );
