@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import BackgroundImg from "../assets/images/LoginBackgroundImg.png";
 import "../stylings/Login.css";
 
-const Login = () => {
+const Login = ({ onLogin }) => {
   const API_SECRET = "y5ns11i89v";
   const API_KEY = "75638fd0-be6a-4c01-8e6a-a09946997f1c";
   const REDIRECT_URI = "http://localhost:3000/login";
@@ -60,6 +60,7 @@ const Login = () => {
 
       const data = await response.json();
       if (response.ok) {
+        onLogin(data.access_token);
         navigate("/", { state: { token: data.access_token } });
         setAuthError(null);
       } else {

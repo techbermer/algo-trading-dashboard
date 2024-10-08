@@ -5,7 +5,7 @@ import BlackBackgroundImg from "../assets/images/HomeBackgroundImg.png";
 import { MARKET_OPTIONS } from "../constants/markets";
 import "../stylings/Home.css";
 
-const Home = () => {
+const Home = ({ onLogout }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const token = location.state?.token;
@@ -18,12 +18,18 @@ const Home = () => {
     navigate("/market", { state: { instrumentKey: option.value, token } });
   };
 
+  const handleLogout = () => {
+    onLogout();
+  };
+
   return (
     <div className="home-wrapper">
       <h2 className="home-title">
         Trade <span>X</span>
       </h2>
-      <button className="profile-button">Profile</button>
+      <button className="profile-button" onClick={handleLogout}>
+        Logout
+      </button>
       <img src={BlackBackgroundImg} alt="" className="black-background-img" />
       <div className="home-content-container">
         <div className="home-content-left">
