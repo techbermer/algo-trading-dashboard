@@ -672,7 +672,6 @@ const Market = () => {
     setSelectedMarket(option.label);
     setInstrumentKey(option.value);
     setIsDropdownOpen(false);
-    localStorage.clear();
     sessionStorage.clear();
     navigate("/market", { state: { instrumentKey: option.value, token } });
   };

@@ -11,12 +11,14 @@ import Home from "./pages/Home";
 import ErrorBoundary from "./errorHandler/ErrorBoundary";
 
 const App = () => {
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(null);
 
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (token) {
       setIsLoggedIn(true);
+    } else {
+      setIsLoggedIn(false);
     }
   }, []);
 
@@ -29,6 +31,10 @@ const App = () => {
     setIsLoggedIn(false);
     localStorage.removeItem("token");
   };
+
+  if (isLoggedIn === null) {
+    return <div>Loading...</div>;
+  }
 
   return (
     <Router style={styles.container}>

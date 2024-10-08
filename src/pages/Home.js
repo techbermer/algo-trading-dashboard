@@ -1,20 +1,27 @@
-import { useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import HomeDecorImg from "../assets/images/HomeDecorativeImg.png";
 import BlackBackgroundImg from "../assets/images/HomeBackgroundImg.png";
 import { MARKET_OPTIONS } from "../constants/markets";
 import "../stylings/Home.css";
 
 const Home = ({ onLogout }) => {
-  const location = useLocation();
   const navigate = useNavigate();
-  const token = location.state?.token;
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [selectedMarket, setSelectedMarket] = useState("Select Market");
+  const [token, setToken] = useState(null);
+
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    if (token) {
+      setToken(token);
+    }
+  }, []);
 
   const handleMarketSelect = (option) => {
     setSelectedMarket(option.label);
     setIsDropdownOpen(false);
+    console.log("market selected", token);
     navigate("/market", { state: { instrumentKey: option.value, token } });
   };
 
