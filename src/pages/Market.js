@@ -465,17 +465,30 @@ const Market = () => {
       websocket.current = new WebSocket(wsUrl);
 
       websocket.current.onopen = () => {
-        setIsConnected(true);
-        const data = {
-          guid: "someguid",
-          method: "sub",
-          data: {
-            mode: "full",
-            instrumentKeys: [instrumentKey],
-          },
-        };
-        messageQueue.push(Buffer?.from(JSON.stringify(data)));
-        sendQueuedMessages();
+        const now = new Date();
+        const startTime = new Date(now);
+        const endTime = new Date(now);
+
+        startTime.setHours(9, 15, 0, 0);
+        endTime.setHours(15, 15, 0, 0);
+
+        if (now >= startTime && now <= endTime) {
+          setIsConnected(true);
+
+          const data = {
+            guid: "someguid",
+            method: "sub",
+            data: {
+              mode: "full",
+              instrumentKeys: [instrumentKey],
+            },
+          };
+
+          messageQueue.push(Buffer?.from(JSON.stringify(data)));
+          sendQueuedMessages();
+        } else {
+          setIsConnected(false);
+        }
       };
 
       websocket.current.onclose = () => {
