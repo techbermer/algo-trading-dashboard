@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import Loader from "../components/Loader";
 import BackgroundImg from "../assets/images/LoginBackgroundImg.png";
 import "../stylings/Login.css";
 
@@ -10,6 +11,7 @@ const Login = ({ onLogin }) => {
 
   const navigate = useNavigate();
   const [authError, setAuthError] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleAuthorize = () => {
     window.location.href = generateAuthUrl();
@@ -27,6 +29,7 @@ const Login = ({ onLogin }) => {
       const authCode = urlParams.get("code");
 
       if (authCode) {
+        setIsLoading(true);
         fetchAccessToken(authCode);
         window.history.replaceState(
           {},
@@ -68,23 +71,33 @@ const Login = ({ onLogin }) => {
       }
     } catch (error) {
       setAuthError("An error occurred while fetching the access token.");
+    } finally {
+      setIsLoading(false);
     }
   };
 
   return (
     <div className="login-wrapper">
-      <h1 className="login-heading">
-        Trade<span>X</span>
-      </h1>
-      <img
-        src={BackgroundImg}
-        className="login-background-img"
-        alt="login-background"
-      />
+      {isLoading ? (
+        <Loader />
+      ) : (
+        <>
+          <h1 className="login-heading">
+            Trade<span>X</span>
+          </h1>
+          <img
+            src={BackgroundImg}
+            className="login-background-img"
+            alt="login-background"
+          />
 
-      <button onClick={handleAuthorize} className="login-button">
-        Login
-      </button>
+          <button onClick={handleAuthorize} className="login-button">
+            Login
+          </button>
+
+          {authError && <p className="error-message">{authError}</p>}
+        </>
+      )}
     </div>
   );
 };
