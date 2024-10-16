@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import HomeDecorImg from "../assets/images/HomeDecorativeImg.png";
 import BlackBackgroundImg from "../assets/images/HomeBackgroundImg.png";
@@ -7,9 +7,10 @@ import "../stylings/Home.css";
 
 const Home = ({ onLogout }) => {
   const navigate = useNavigate();
+  const dropdownRef = useRef(null);
+  const [token, setToken] = useState(null);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [selectedMarket, setSelectedMarket] = useState("Select Market");
-  const [token, setToken] = useState(null);
 
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -17,6 +18,19 @@ const Home = ({ onLogout }) => {
       setToken(token);
     }
   }, []);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsDropdownOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [dropdownRef]);
 
   const handleMarketSelect = (option) => {
     setSelectedMarket(option.label);
@@ -46,7 +60,7 @@ const Home = ({ onLogout }) => {
             Navigate and manage your trading strategies effortlessly with an
             intuitive and easy-to-use platform.
           </h6>
-          <div className="dropdown-container">
+          <div className="dropdown-container" ref={dropdownRef}>
             <button
               className="dropdown-toggle"
               onClick={() => setIsDropdownOpen(!isDropdownOpen)}
