@@ -470,7 +470,7 @@ const Market = () => {
         const endTime = new Date(now);
 
         startTime.setHours(9, 15, 0, 0);
-        endTime.setHours(15, 15, 0, 0);
+        endTime.setHours(15, 30, 0, 0);
 
         if (now >= startTime && now <= endTime) {
           setIsConnected(true);
