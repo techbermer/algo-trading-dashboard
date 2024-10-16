@@ -803,6 +803,10 @@ const Market = () => {
             </ul>
           )}
         </div>
+        <div
+          className="socket-connection-indicator"
+          style={{ backgroundColor: isConnected ? "#26a69a" : "#ef5350" }}
+        />
         <CurrentCandleData currentCandle={currentCandle} />
       </div>
       <div ref={candlestickChartContainerRef} className="chart-container" />

@@ -19,12 +19,19 @@
 }
 
 .current-candle-data {
-    color: white;
-    display: flex;
-    gap: 8px;
+  color: white;
+  display: flex;
+  gap: 8px;
 }
 
 .market-list-container {
-     position: relative;
+  position: relative;
   width: 200px;
+}
+
+.socket-connection-indicator {
+  height: 10px;
+  width: 10px;
+  border-radius: 50%;
+  margin-top: 2px;
 }
