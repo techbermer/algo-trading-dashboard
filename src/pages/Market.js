@@ -53,6 +53,7 @@ const Market = () => {
   const rsiChartContainerRef = useRef(null);
 
   const [isConnected, setIsConnected] = useState(false);
+  const [shouldReload, setShouldReload] = useState(false);
   const [currentCandle, setCurrentCandle] = useState(null);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [selectedMarket, setSelectedMarket] = useState("Markets");
@@ -284,7 +285,6 @@ const Market = () => {
         charts.forEach((chart) => {
           if (chart && chart.timeScale()) {
             try {
-              // Check if the chart has data before setting the visible range
               if (chart.timeScale().getVisibleLogicalRange()) {
                 chart.timeScale().setVisibleRange(visibleRange);
               } else {
@@ -309,17 +309,14 @@ const Market = () => {
         charts.forEach((chart) => {
           if (chart && chart.timeScale()) {
             chart.timeScale().subscribeVisibleTimeRangeChange(() => {
-              // Add a small delay to ensure chart is ready
               setTimeout(() => syncTimeRange(chart), 50);
             });
           }
         });
       };
 
-      // Delay the initial setup to ensure charts are fully initialized
       setTimeout(() => {
         setupChartSubscriptions();
-        // Perform an initial synchronization
         syncTimeRange(candlestickChart.current);
       }, 100);
 
@@ -734,10 +731,18 @@ const Market = () => {
     setInstrumentKey(option.value);
     setIsDropdownOpen(false);
     sessionStorage.clear();
+    setShouldReload(true);
     navigate("/market", { state: { instrumentKey: option.value, token } });
   };
 
   useEffect(() => {
+    if (shouldReload) {
+      window.location.reload();
+    }
+  }, [shouldReload]);
+
+  useEffect(() => {
+    setShouldReload(false);
     candlestickSeries.current.setData([]);
 
     const fetchAndUpdateData = async () => {

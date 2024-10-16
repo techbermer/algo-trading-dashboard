@@ -8,7 +8,6 @@ import { useState, useEffect } from "react";
 import Login from "./pages/Login";
 import Market from "./pages/Market";
 import Home from "./pages/Home";
-import ErrorBoundary from "./errorHandler/ErrorBoundary";
 
 const App = () => {
   const [isLoggedIn, setIsLoggedIn] = useState(null);
@@ -42,14 +41,7 @@ const App = () => {
         {isLoggedIn ? (
           <>
             <Route path="/" element={<Home onLogout={handleLogout} />} />
-            <Route
-              path="/market"
-              element={
-                <ErrorBoundary>
-                  <Market />
-                </ErrorBoundary>
-              }
-            />
+            <Route path="/market" element={<Market />} />
             <Route path="*" element={<Navigate to="/" />} />
           </>
         ) : (
