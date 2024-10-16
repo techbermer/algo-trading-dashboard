@@ -38,9 +38,7 @@ export const updateMACD = ({
   macdSeries,
 }) => {
   const currentData = candlestickSeries.current.data();
-
   const updatedData = [...currentData, updatedCandle];
-
   const closePrices = updatedData.map((candle) => candle.close);
 
   const macdInput = {
@@ -53,13 +51,29 @@ export const updateMACD = ({
   };
 
   const macdResult = MACD.calculate(macdInput);
-  const latestMACD = macdResult[macdResult.length - 1];
 
-  if (latestMACD) {
+  if (macdResult.length < 2) {
+    return;
+  }
+
+  const latestMACD = macdResult[macdResult.length - 1];
+  const previousMACD = macdResult[macdResult.length - 2];
+
+  if (latestMACD && previousMACD) {
+    const currentHistogram = latestMACD.MACD - latestMACD.signal;
+    const previousHistogram = previousMACD.MACD - previousMACD.signal;
+
+    let color;
+    if (currentHistogram >= 0) {
+      color = currentHistogram > previousHistogram ? "#41A69A" : "#B7DFDB";
+    } else {
+      color = currentHistogram > previousHistogram ? "#FBCDD2" : "#F5504E";
+    }
+
     const macdHistogram = {
       time: updatedCandle.time,
-      value: latestMACD.MACD - latestMACD.signal,
-      color: latestMACD.MACD >= latestMACD.signal ? "#26a69a" : "#ef5350",
+      value: currentHistogram,
+      color: color,
     };
 
     macdSeries.current.update(macdHistogram);
