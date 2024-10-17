@@ -3,6 +3,14 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { createChart, CrosshairMode } from "lightweight-charts";
 import BackArrow from "../assets/icons/BackArrow.png";
 import { MARKET_OPTIONS } from "../constants/markets";
+import {
+  CANDLESTICK_SERIES_CONFIG,
+  MACD_SERIES_CONFIG,
+  RSI_SERIES_CONFIG,
+  SUPERTREND_UPPERBAND_CONFIG,
+  SUPERTREND_LOWERBAND_CONFIG,
+} from "../constants/chartConfigs";
+import { commonChartOptions } from "../constants/commonChartOptions";
 import { CurrentCandleData } from "../components/CurrentCandleData";
 import { getCandleRemainingTime } from "../utils/helpers/getCandleRemainingTime";
 import { getUrl } from "../utils/webSocket/webSocketUrl";
@@ -145,27 +153,6 @@ const Market = () => {
     )
       return;
 
-    const commonChartOptions = {
-      layout: {
-        background: { type: "solid", color: "#1E222D" },
-        textColor: "white",
-      },
-      grid: {
-        vertLines: { color: "#2B2B43" },
-        horzLines: { color: "#2B2B43" },
-      },
-      rightPriceScale: {
-        visible: true,
-        borderColor: "#2B2B43",
-        minimumWidth: 70,
-      },
-      timeScale: {
-        timeVisible: true,
-        secondsVisible: false,
-        borderColor: "#2B2B43",
-      },
-    };
-
     candlestickChart.current = createChart(
       candlestickChartContainerRef.current,
       {
@@ -179,11 +166,7 @@ const Market = () => {
     );
 
     candlestickSeries.current = candlestickChart.current.addCandlestickSeries({
-      upColor: "#26a69a",
-      downColor: "#ef5350",
-      borderVisible: false,
-      wickUpColor: "#26a69a",
-      wickDownColor: "#ef5350",
+      ...CANDLESTICK_SERIES_CONFIG,
     });
 
     macdChart.current = createChart(macdChartContainerRef.current, {
@@ -193,10 +176,7 @@ const Market = () => {
     });
 
     macdSeries.current = macdChart.current.addHistogramSeries({
-      color: "#26a69a",
-      priceFormat: {
-        type: "price",
-      },
+      ...MACD_SERIES_CONFIG,
     });
 
     rsiChart.current = createChart(rsiChartContainerRef.current, {
@@ -206,8 +186,7 @@ const Market = () => {
     });
 
     rsiSeries.current = rsiChart.current.addLineSeries({
-      color: "#2962FF",
-      lineWidth: 2,
+      ...RSI_SERIES_CONFIG,
     });
 
     try {
@@ -234,13 +213,11 @@ const Market = () => {
       const superTrendResult = calculateSuperTrend(sortedData);
 
       upperBandSeries.current = candlestickChart.current.addLineSeries({
-        color: "rgba(255, 82, 82, 0.7)",
-        lineWidth: 1,
+        ...SUPERTREND_UPPERBAND_CONFIG,
       });
 
       lowerBandSeries.current = candlestickChart.current.addLineSeries({
-        color: "rgba(76, 175, 80, 0.7)",
-        lineWidth: 1,
+        ...SUPERTREND_LOWERBAND_CONFIG,
       });
 
       const validUpperBandData = superTrendResult
