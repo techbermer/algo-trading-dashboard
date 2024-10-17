@@ -3,7 +3,7 @@ const CandleDataRow = ({ keyName, value, isBullish }) => (
     <span style={{ color: "white" }}>{keyName}:</span>{" "}
     <span
       style={{
-        color: isBullish ? "#26a69a" : "#ef5350",
+        color: isBullish ? "#329981" : "#E83341",
       }}
     >
       {value?.toLocaleString("en-IN")}
