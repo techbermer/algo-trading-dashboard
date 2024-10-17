@@ -1,9 +1,9 @@
 export const CANDLESTICK_SERIES_CONFIG = {
-  upColor: "#26a69a",
-  downColor: "#ef5350",
+  upColor: "#329981",
+  downColor: "#E83341",
   borderVisible: false,
-  wickUpColor: "#26a69a",
-  wickDownColor: "#ef5350",
+  wickUpColor: "#329981",
+  wickDownColor: "#E83341",
 };
 
 export const MACD_SERIES_CONFIG = {
@@ -18,11 +18,11 @@ export const RSI_SERIES_CONFIG = {
 };
 
 export const SUPERTREND_UPPERBAND_CONFIG = {
-  color: "rgba(255, 82, 82, 0.7)",
+  color: "#F5504E",
   lineWidth: 1,
 };
 
 export const SUPERTREND_LOWERBAND_CONFIG = {
-  color: "rgba(76, 175, 80, 0.7)",
+  color: "#5AAF4B",
   lineWidth: 1,
 };

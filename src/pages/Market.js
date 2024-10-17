@@ -1,7 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { createChart, CrosshairMode } from "lightweight-charts";
-import BackArrow from "../assets/icons/BackArrow.png";
 import { MARKET_OPTIONS } from "../constants/markets";
 import {
   RSI_SERIES_CONFIG,
@@ -14,7 +13,6 @@ import { commonChartOptions } from "../constants/commonChartOptions";
 import { CurrentCandleData } from "../components/CurrentCandleData";
 import { createCustomMinuteCandles } from "../utils/helpers/candleConvertor";
 import { getCandleRemainingTime } from "../utils/helpers/getCandleRemainingTime";
-import { getUrl } from "../apis/webSocketUrl";
 import {
   calculateRSI,
   updateRSI,
@@ -27,6 +25,8 @@ import {
   decodeProfobuf,
   blobToArrayBuffer,
 } from "../utils/protoBufferProcessor/protoBufferProcessors";
+import BackArrow from "../assets/icons/BackArrow.png";
+import { getUrl } from "../apis/webSocketUrl";
 import { getHistoricalData, getTodayData } from "../apis/marketDataApis";
 import "../stylings/Market.css";
 import proto from "../../src/prot/MarketDataFeed.proto";
@@ -754,7 +754,7 @@ const Market = () => {
         </div>
         <div
           className="socket-connection-indicator"
-          style={{ backgroundColor: isConnected ? "#26a69a" : "#ef5350" }}
+          style={{ backgroundColor: isConnected ? "#329981" : "#E83341" }}
         />
         {remainingTime && isConnected && (
           <div className="current-candle-timer"> {remainingTime}</div>
