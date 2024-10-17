@@ -163,7 +163,7 @@ const Market = () => {
       {
         ...commonChartOptions,
         width: candlestickChartContainerRef.current.clientWidth,
-        height: 400,
+        height: window.innerHeight * 0.55,
         crosshair: {
           mode: CrosshairMode.Normal,
         },
@@ -181,7 +181,7 @@ const Market = () => {
     macdChart.current = createChart(macdChartContainerRef.current, {
       ...commonChartOptions,
       width: macdChartContainerRef.current.clientWidth,
-      height: 200,
+      height: window.innerHeight * 0.25,
     });
 
     macdSeries.current = macdChart.current.addHistogramSeries({
@@ -194,7 +194,7 @@ const Market = () => {
     rsiChart.current = createChart(rsiChartContainerRef.current, {
       ...commonChartOptions,
       width: rsiChartContainerRef.current.clientWidth,
-      height: 150,
+      height: window.innerHeight * 0.20325,
     });
 
     rsiSeries.current = rsiChart.current.addLineSeries({
