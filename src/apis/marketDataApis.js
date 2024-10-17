@@ -1,6 +1,6 @@
 import { HISTORY_DATA, TODAY_DATA } from "../config";
-import { upstoxDataInterval, today, fromDate } from "../constants/constants";
 import { getToken } from "../services/accessTokenHandler";
+import { upstoxDataInterval, today, fromDate } from "../constants/constants";
 
 export async function getHistoricalData({ instrumentKey }) {
   const response = await fetch(
