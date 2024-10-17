@@ -4,6 +4,7 @@ import { createChart, CrosshairMode } from "lightweight-charts";
 import BackArrow from "../assets/icons/BackArrow.png";
 import { MARKET_OPTIONS } from "../constants/markets";
 import { CurrentCandleData } from "../components/CurrentCandleData";
+import { getCandleRemainingTime } from "../utils/helpers/getCandleRemainingTime";
 import { getUrl } from "../utils/webSocket/webSocketUrl";
 import {
   calculateRSI,
@@ -54,6 +55,7 @@ const Market = () => {
 
   const [isConnected, setIsConnected] = useState(false);
   const [shouldReload, setShouldReload] = useState(false);
+  const [remainingTime, setRemainingTime] = useState(null);
   const [currentCandle, setCurrentCandle] = useState(null);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [selectedMarket, setSelectedMarket] = useState("Markets");
@@ -69,6 +71,12 @@ const Market = () => {
 
   useEffect(() => {
     initProtobuf();
+  }, []);
+
+  useEffect(() => {
+    const clearInterval = getCandleRemainingTime(setRemainingTime);
+
+    return clearInterval;
   }, []);
 
   const calculateATR = (data, period = 10) => {
@@ -820,6 +828,9 @@ const Market = () => {
           className="socket-connection-indicator"
           style={{ backgroundColor: isConnected ? "#26a69a" : "#ef5350" }}
         />
+        {remainingTime && isConnected && (
+          <div className="current-candle-timer"> {remainingTime}</div>
+        )}
         <CurrentCandleData currentCandle={currentCandle} />
       </div>
       <div ref={candlestickChartContainerRef} className="chart-container" />
