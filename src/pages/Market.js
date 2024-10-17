@@ -4,14 +4,15 @@ import { createChart, CrosshairMode } from "lightweight-charts";
 import BackArrow from "../assets/icons/BackArrow.png";
 import { MARKET_OPTIONS } from "../constants/markets";
 import {
-  CANDLESTICK_SERIES_CONFIG,
-  MACD_SERIES_CONFIG,
   RSI_SERIES_CONFIG,
+  MACD_SERIES_CONFIG,
+  CANDLESTICK_SERIES_CONFIG,
   SUPERTREND_UPPERBAND_CONFIG,
   SUPERTREND_LOWERBAND_CONFIG,
 } from "../constants/chartConfigs";
 import { commonChartOptions } from "../constants/commonChartOptions";
 import { CurrentCandleData } from "../components/CurrentCandleData";
+import { createCustomMinuteCandles } from "../utils/helpers/candleConvertor";
 import { getCandleRemainingTime } from "../utils/helpers/getCandleRemainingTime";
 import { getUrl } from "../utils/webSocket/webSocketUrl";
 import {
@@ -61,13 +62,14 @@ const Market = () => {
   const rsiResizeObserver = useRef(null);
   const rsiChartContainerRef = useRef(null);
 
+  const [selectedInterval] = useState(3);
   const [isConnected, setIsConnected] = useState(false);
   const [shouldReload, setShouldReload] = useState(false);
   const [remainingTime, setRemainingTime] = useState(null);
   const [currentCandle, setCurrentCandle] = useState(null);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [selectedMarket, setSelectedMarket] = useState("Markets");
-  const [current3MinCandle, setCurrent3MinCandle] = useState(null);
+  const [current3MinCandle, setCurrentIntervalCandle] = useState(null);
   const [lastProcessedMinute, setLastProcessedMinute] = useState(null);
   const [instrumentKey, setInstrumentKey] = useState(
     location.state.instrumentKey
@@ -417,7 +419,10 @@ const Market = () => {
       const combinedData = [...processedHistoricalData, ...processedTodayData];
       const sortedData = combinedData.sort((a, b) => a.time - b.time);
 
-      const threeMinuteCandles = create3MinuteCandles(sortedData);
+      const threeMinuteCandles = createCustomMinuteCandles(
+        sortedData,
+        selectedInterval
+      );
       return threeMinuteCandles;
     } catch (error) {
       console.error("Error fetching intraday candle data:", error);
@@ -511,30 +516,6 @@ const Market = () => {
     }
   };
 
-  const create3MinuteCandle = (oneMinCandles) => {
-    if (oneMinCandles.length === 0) return null;
-
-    return {
-      time: oneMinCandles[0].time,
-      open: oneMinCandles[0].open,
-      high: Math.max(...oneMinCandles.map((c) => c.high)),
-      low: Math.min(...oneMinCandles.map((c) => c.low)),
-      close: oneMinCandles[oneMinCandles.length - 1].close,
-      volume: oneMinCandles.reduce((sum, c) => sum + c.volume, 0),
-    };
-  };
-
-  const create3MinuteCandles = (data) => {
-    const result = [];
-    for (let i = 0; i < data.length; i += 3) {
-      if (i + 2 < data.length) {
-        const threeMinuteCandle = create3MinuteCandle(data.slice(i, i + 3));
-        result.push(threeMinuteCandle);
-      }
-    }
-    return result;
-  };
-
   const handleMarketData = (data) => {
     if (data && data.feeds) {
       const feedKey = Object.keys(data.feeds).find((key) =>
@@ -548,7 +529,7 @@ const Market = () => {
 
       if (feedKey !== instrumentKey) {
         setLastProcessedMinute(null);
-        setCurrent3MinCandle(null);
+        setCurrentIntervalCandle(null);
         setCurrentCandle(null);
         candlestickSeries.current.clear();
         upperBandSeries.current.clear();
@@ -577,8 +558,9 @@ const Market = () => {
 
         setLastProcessedMinute(currentMinuteTime);
 
-        const current3MinCandleStart =
-          Math.floor(currentMinuteTime / 180) * 180;
+        const currentIntervalCandleStart =
+          Math.floor(currentMinuteTime / (selectedInterval * 60)) *
+          (selectedInterval * 60);
 
         const currentMinuteCandle = {
           time: currentMinuteTime,
@@ -589,11 +571,14 @@ const Market = () => {
           volume: minuteOHLC.volume,
         };
 
-        setCurrent3MinCandle((prev3MinCandle) => {
+        setCurrentIntervalCandle((prevIntervalCandle) => {
           let updatedCandle;
-          if (!prev3MinCandle || current3MinCandleStart > prev3MinCandle.time) {
+          if (
+            !prevIntervalCandle ||
+            currentIntervalCandleStart > prevIntervalCandle.time
+          ) {
             updatedCandle = {
-              time: current3MinCandleStart,
+              time: currentIntervalCandleStart,
               open: currentMinuteCandle.open,
               high: currentMinuteCandle.high,
               low: currentMinuteCandle.low,
@@ -602,11 +587,11 @@ const Market = () => {
             };
           } else {
             updatedCandle = {
-              ...prev3MinCandle,
-              high: Math.max(prev3MinCandle.high, currentMinuteCandle.high),
-              low: Math.min(prev3MinCandle.low, currentMinuteCandle.low),
+              ...prevIntervalCandle,
+              high: Math.max(prevIntervalCandle.high, currentMinuteCandle.high),
+              low: Math.min(prevIntervalCandle.low, currentMinuteCandle.low),
               close: currentMinuteCandle.close,
-              volume: prev3MinCandle.volume + currentMinuteCandle.volume,
+              volume: prevIntervalCandle.volume + currentMinuteCandle.volume,
             };
           }
 
