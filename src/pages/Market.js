@@ -14,7 +14,7 @@ import { commonChartOptions } from "../constants/commonChartOptions";
 import { CurrentCandleData } from "../components/CurrentCandleData";
 import { createCustomMinuteCandles } from "../utils/helpers/candleConvertor";
 import { getCandleRemainingTime } from "../utils/helpers/getCandleRemainingTime";
-import { getUrl } from "../utils/webSocket/webSocketUrl";
+import { getUrl } from "../apis/webSocketUrl";
 import {
   calculateRSI,
   updateRSI,
@@ -27,6 +27,7 @@ import {
   decodeProfobuf,
   blobToArrayBuffer,
 } from "../utils/protoBufferProcessor/protoBufferProcessors";
+import { getHistoricalData, getTodayData } from "../apis/marketDataApis";
 import "../stylings/Market.css";
 import proto from "../../src/prot/MarketDataFeed.proto";
 import { Buffer } from "buffer";
@@ -74,10 +75,6 @@ const Market = () => {
   const [instrumentKey, setInstrumentKey] = useState(
     location.state.instrumentKey
   );
-
-  const interval = "1minute";
-  const oneWeekAgo = new Date();
-  oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
 
   useEffect(() => {
     initProtobuf();
@@ -353,28 +350,8 @@ const Market = () => {
   const fetchIntradayCandleData = async () => {
     if (!token) return [];
 
-    const today = new Date().toISOString().split("T")[0];
-    const oneWeekAgo = new Date();
-    oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
-    const fromDate = oneWeekAgo.toISOString().split("T")[0];
-
-    const historicalEndpoint = `https://api.upstox.com/v2/historical-candle/${instrumentKey}/${interval}/${today}/${fromDate}`;
-    const todayEndpoint = `https://api.upstox.com/v2/historical-candle/intraday/${instrumentKey}/${interval}/`;
-
     try {
-      const historicalResponse = await fetch(historicalEndpoint, {
-        method: "GET",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          Accept: "application/json",
-        },
-      });
-
-      if (!historicalResponse.ok) {
-        throw new Error(`HTTP error! status: ${historicalResponse.status}`);
-      }
-
-      const historicalData = await historicalResponse.json();
+      const historicalData = await getHistoricalData({ instrumentKey });
       const processedHistoricalData =
         historicalData.status === "success" &&
         historicalData.data &&
@@ -389,19 +366,8 @@ const Market = () => {
             }))
           : [];
 
-      const todayResponse = await fetch(todayEndpoint, {
-        method: "GET",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          Accept: "application/json",
-        },
-      });
+      const todayData = await getTodayData({ instrumentKey });
 
-      if (!todayResponse.ok) {
-        throw new Error(`HTTP error! status: ${todayResponse.status}`);
-      }
-
-      const todayData = await todayResponse.json();
       const processedTodayData =
         todayData.status === "success" &&
         todayData.data &&
