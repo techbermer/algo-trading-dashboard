@@ -43,16 +43,13 @@ const Market = () => {
   const navigate = useNavigate();
   const { token } = location.state || {};
   const websocket = useRef(null);
-  const resizeObserver = useRef(null);
 
   const macdChart = useRef(null);
   const macdSeries = useRef(null);
-  const macdResizeObserver = useRef(null);
   const macdChartContainerRef = useRef(null);
 
   const candlestickChart = useRef(null);
   const candlestickSeries = useRef(null);
-  const candlestickResizeObserver = useRef(null);
   const candlestickChartContainerRef = useRef(null);
 
   const upperBandSeries = useRef(null);
@@ -60,7 +57,6 @@ const Market = () => {
 
   const rsiChart = useRef(null);
   const rsiSeries = useRef(null);
-  const rsiResizeObserver = useRef(null);
   const rsiChartContainerRef = useRef(null);
 
   const [selectedInterval] = useState(3);
@@ -122,26 +118,38 @@ const Market = () => {
 
   useEffect(() => {
     initializeCharts();
+    window.addEventListener("resize", handleResize);
 
     return () => {
-      if (candlestickResizeObserver.current) {
-        candlestickResizeObserver.current.unobserve(
-          candlestickChartContainerRef.current
-        );
-      }
-      if (macdResizeObserver.current) {
-        macdResizeObserver.current.unobserve(macdChartContainerRef.current);
-      }
-      if (rsiResizeObserver.current) {
-        rsiResizeObserver.current.unobserve(rsiChartContainerRef.current);
-      }
-
       candlestickChart.current?.remove();
       macdChart.current?.remove();
       rsiChart.current?.remove();
       websocket.current?.close();
     };
   }, [token]);
+
+  const handleResize = () => {
+    if (candlestickChart.current && candlestickChartContainerRef.current) {
+      candlestickChart.current.applyOptions({
+        width: candlestickChartContainerRef.current.clientWidth,
+        height: window.innerHeight * 0.55,
+      });
+    }
+
+    if (macdChart.current && macdChartContainerRef.current) {
+      macdChart.current.applyOptions({
+        width: macdChartContainerRef.current.clientWidth,
+        height: window.innerHeight * 0.25,
+      });
+    }
+
+    if (rsiChart.current && rsiChartContainerRef.current) {
+      rsiChart.current.applyOptions({
+        width: rsiChartContainerRef.current.clientWidth,
+        height: window.innerHeight * 0.20325,
+      });
+    }
+  };
 
   const initializeCharts = async () => {
     if (
@@ -181,7 +189,7 @@ const Market = () => {
     rsiChart.current = createChart(rsiChartContainerRef.current, {
       ...commonChartOptions,
       width: rsiChartContainerRef.current.clientWidth,
-      height: window.innerHeight * 0.20325,
+      height: window.innerHeight * 0.2,
     });
 
     rsiSeries.current = rsiChart.current.addLineSeries({
@@ -304,48 +312,11 @@ const Market = () => {
         syncTimeRange(candlestickChart.current);
       }, 100);
 
-      const createResizeObserver = (chart, container) => {
-        return new ResizeObserver((entries) => {
-          if (entries[0].target === container) {
-            const { width, height } = entries[0].contentRect;
-            chart.applyOptions({ width, height });
-          }
-        });
-      };
-
-      candlestickResizeObserver.current = createResizeObserver(
-        candlestickChart.current,
-        candlestickChartContainerRef.current
-      );
-      macdResizeObserver.current = createResizeObserver(
-        macdChart.current,
-        macdChartContainerRef.current
-      );
-      rsiResizeObserver.current = createResizeObserver(
-        rsiChart.current,
-        rsiChartContainerRef.current
-      );
-
-      candlestickResizeObserver.current.observe(
-        candlestickChartContainerRef.current
-      );
-      macdResizeObserver.current.observe(macdChartContainerRef.current);
-      rsiResizeObserver.current.observe(rsiChartContainerRef.current);
-
       initializeWebSocket();
     } catch (error) {
       console.error("Error initializing charts:", error);
     }
   };
-
-  useEffect(() => {
-    return () => {
-      if (resizeObserver.current && candlestickChartContainerRef.current) {
-        resizeObserver.current.unobserve(candlestickChartContainerRef.current);
-        resizeObserver.current = null;
-      }
-    };
-  }, []);
 
   const fetchIntradayCandleData = async () => {
     if (!token) return [];
