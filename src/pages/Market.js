@@ -146,7 +146,7 @@ const Market = () => {
     if (rsiChart.current && rsiChartContainerRef.current) {
       rsiChart.current.applyOptions({
         width: rsiChartContainerRef.current.clientWidth,
-        height: window.innerHeight * 0.20325,
+        height: window.innerHeight * 0.2,
       });
     }
   };
