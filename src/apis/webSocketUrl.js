@@ -4,13 +4,20 @@ export const getUrl = async (token) => {
     "Content-type": "application/json",
     Authorization: "Bearer " + token,
   };
+
   const response = await fetch(apiUrl, {
     method: "GET",
     headers: headers,
   });
+
+  if (response.status === 401) {
+    throw new Error("Token expired");
+  }
+
   if (!response.ok) {
     throw new Error("Network response was not ok");
   }
+
   const res = await response.json();
   return res.data.authorizedRedirectUri;
 };
