@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { createChart, CrosshairMode } from "lightweight-charts";
+import { toast } from "react-toastify";
 import { MARKET_OPTIONS } from "../constants/markets";
 import {
   RSI_SERIES_CONFIG,
@@ -578,6 +579,13 @@ const Market = () => {
         console.error("WebSocket error:", error);
       };
     } catch (error) {
+      if (!navigator.onLine && !toast.isActive("session-expired-toast")) {
+        toast.error("Internet disconnected. Please check your connection.", {
+          toastId: "session-expired-toast",
+          autoClose: false,
+        });
+      }
+
       console.error("WebSocket connection error:", error);
     }
   };
