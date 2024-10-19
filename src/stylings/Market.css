@@ -9,7 +9,7 @@
   position: relative;
 }
 
-.market-controls {
+.market-controler {
   position: absolute;
   z-index: 9;
   top: 0;
@@ -38,4 +38,26 @@
 
 .current-candle-timer {
   color: white;
+}
+
+.charts-container {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - [height of market-controls]);
+}
+
+.chart-container {
+  flex-grow: 1;
+  position: relative;
+}
+
+.chart-divider {
+  height: 3px;
+  background-color: #2a2a2a;
+  cursor: row-resize;
+}
+
+.chart-divider:hover {
+  height: 5px;
+  background-color: #1C264F;
 }
