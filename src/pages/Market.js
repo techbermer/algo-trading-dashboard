@@ -38,11 +38,15 @@ const initProtobuf = async () => {
   protobufRoot = await protobuf.load(proto);
 };
 
-const Market = () => {
+const Market = ({ onLogout }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const { token } = location.state || {};
+
   const websocket = useRef(null);
+  const dragStartYRef = useRef(0);
+  const isDraggingRef = useRef(false);
+  const draggedDividerRef = useRef(null);
 
   const macdChart = useRef(null);
   const macdSeries = useRef(null);
@@ -71,15 +75,11 @@ const Market = () => {
   const [instrumentKey, setInstrumentKey] = useState(
     location.state.instrumentKey
   );
-
   const [chartHeights, setChartHeights] = useState({
     candlestick: 55,
     macd: 25,
     rsi: 20,
   });
-  const isDraggingRef = useRef(false);
-  const dragStartYRef = useRef(0);
-  const draggedDividerRef = useRef(null);
 
   useEffect(() => {
     initProtobuf();
@@ -103,6 +103,42 @@ const Market = () => {
 
     return clearInterval;
   }, []);
+
+  const cleanupCharts = async () => {
+    return new Promise((resolve) => {
+      if (candlestickChart.current) {
+        candlestickChart.current.remove();
+        candlestickChart.current = null;
+      }
+      candlestickSeries.current = null;
+      upperBandSeries.current = null;
+      lowerBandSeries.current = null;
+
+      if (macdChart.current) {
+        macdChart.current.remove();
+        macdChart.current = null;
+      }
+      macdSeries.current = null;
+
+      if (rsiChart.current) {
+        rsiChart.current.remove();
+        rsiChart.current = null;
+      }
+      rsiSeries.current = null;
+
+      resolve();
+    });
+  };
+
+  const handleTokenExpiration = async () => {
+    if (websocket.current) {
+      websocket.current.close();
+    }
+
+    await cleanupCharts();
+
+    onLogout("Session expired, please re-login");
+  };
 
   const calculateATR = (data, period = 10) => {
     const trueRanges = [];
@@ -320,7 +356,7 @@ const Market = () => {
       height: window.innerHeight * 0.2,
     });
 
-    rsiSeries.current = rsiChart.current.addLineSeries({
+    rsiSeries.current = rsiChart?.current?.addLineSeries({
       ...RSI_SERIES_CONFIG,
     });
 
@@ -341,17 +377,17 @@ const Market = () => {
         C: lastCandle.close,
       });
 
-      candlestickSeries.current.setData(sortedData);
-      macdSeries.current.setData(calculateMACD(sortedData));
-      rsiSeries.current.setData(calculateRSI(sortedData));
+      candlestickSeries.current?.setData(sortedData);
+      macdSeries.current?.setData(calculateMACD(sortedData));
+      rsiSeries.current?.setData(calculateRSI(sortedData));
 
       const superTrendResult = calculateSuperTrend(sortedData);
 
-      upperBandSeries.current = candlestickChart.current.addLineSeries({
+      upperBandSeries.current = candlestickChart?.current?.addLineSeries({
         ...SUPERTREND_UPPERBAND_CONFIG,
       });
 
-      lowerBandSeries.current = candlestickChart.current.addLineSeries({
+      lowerBandSeries.current = candlestickChart?.current?.addLineSeries({
         ...SUPERTREND_LOWERBAND_CONFIG,
       });
 
@@ -364,17 +400,17 @@ const Market = () => {
         .map((item) => ({ time: item.time, value: item.lower }));
 
       if (validUpperBandData.length > 0) {
-        upperBandSeries.current.setData(validUpperBandData);
-        upperBandSeries.current.applyOptions({ visible: true });
+        upperBandSeries.current?.setData(validUpperBandData);
+        upperBandSeries.current?.applyOptions({ visible: true });
       } else {
-        upperBandSeries.current.applyOptions({ visible: false });
+        upperBandSeries.current?.applyOptions({ visible: false });
       }
 
       if (validLowerBandData.length > 0) {
-        lowerBandSeries.current.setData(validLowerBandData);
-        lowerBandSeries.current.applyOptions({ visible: true });
+        lowerBandSeries.current?.setData(validLowerBandData);
+        lowerBandSeries.current?.applyOptions({ visible: true });
       } else {
-        lowerBandSeries.current.applyOptions({ visible: false });
+        lowerBandSeries.current?.applyOptions({ visible: false });
       }
 
       const syncTimeRange = (sourceChart) => {
@@ -522,6 +558,13 @@ const Market = () => {
 
       websocket.current.onopen = () => {
         const now = new Date();
+        const currentDay = now.getDay();
+
+        if (currentDay === 0 || currentDay === 6) {
+          setIsConnected(false);
+          return;
+        }
+
         const startTime = new Date(now);
         const endTime = new Date(now);
 
@@ -545,10 +588,6 @@ const Market = () => {
         } else {
           setIsConnected(false);
         }
-      };
-
-      websocket.current.onclose = () => {
-        setIsConnected(false);
       };
 
       websocket.current.onmessage = async (event) => {
@@ -579,6 +618,9 @@ const Market = () => {
       };
     } catch (error) {
       console.error("WebSocket connection error:", error);
+      if (error.message === "Token expired") {
+        handleTokenExpiration();
+      }
     }
   };
 
@@ -792,12 +834,12 @@ const Market = () => {
 
   useEffect(() => {
     setShouldReload(false);
-    candlestickSeries.current.setData([]);
+    candlestickSeries.current?.setData([]);
 
     const fetchAndUpdateData = async () => {
       const fetchedData = await fetchIntradayCandleData();
       if (fetchedData.length > 0) {
-        candlestickSeries.current.setData(fetchedData);
+        candlestickSeries.current?.setData(fetchedData);
       }
     };
 

@@ -5,9 +5,12 @@ import {
   Navigate,
 } from "react-router-dom";
 import { useState, useEffect } from "react";
+import { ToastContainer, toast } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 import Login from "./pages/Login";
 import Market from "./pages/Market";
 import Home from "./pages/Home";
+import Loader from "./components/Loader";
 
 const App = () => {
   const [isLoggedIn, setIsLoggedIn] = useState(null);
@@ -26,32 +29,44 @@ const App = () => {
     localStorage.setItem("token", token);
   };
 
-  const handleLogout = () => {
+  const handleLogout = (message) => {
     setIsLoggedIn(false);
     localStorage.removeItem("token");
+
+    if (message && !toast.isActive("session-expired-toast")) {
+      toast.error(message, {
+        toastId: "session-expired-toast",
+      });
+    }
   };
 
   if (isLoggedIn === null) {
-    return <div>Loading...</div>;
+    return <Loader />;
   }
 
   return (
-    <Router style={styles.container}>
-      <Routes>
-        {isLoggedIn ? (
-          <>
-            <Route path="/" element={<Home onLogout={handleLogout} />} />
-            <Route path="/market" element={<Market />} />
-            <Route path="*" element={<Navigate to="/" />} />
-          </>
-        ) : (
-          <>
-            <Route path="/login" element={<Login onLogin={handleLogin} />} />
-            <Route path="*" element={<Navigate to="/login" />} />
-          </>
-        )}
-      </Routes>
-    </Router>
+    <>
+      <Router style={styles.container}>
+        <Routes>
+          {isLoggedIn ? (
+            <>
+              <Route path="/" element={<Home onLogout={handleLogout} />} />
+              <Route
+                path="/market"
+                element={<Market onLogout={handleLogout} />}
+              />
+              <Route path="*" element={<Navigate to="/" />} />
+            </>
+          ) : (
+            <>
+              <Route path="/login" element={<Login onLogin={handleLogin} />} />
+              <Route path="*" element={<Navigate to="/login" />} />
+            </>
+          )}
+        </Routes>
+      </Router>
+      <ToastContainer />
+    </>
   );
 };
 
