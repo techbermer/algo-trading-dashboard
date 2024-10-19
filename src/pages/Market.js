@@ -72,8 +72,30 @@ const Market = () => {
     location.state.instrumentKey
   );
 
+  const [chartHeights, setChartHeights] = useState({
+    candlestick: 55,
+    macd: 25,
+    rsi: 20,
+  });
+  const isDraggingRef = useRef(false);
+  const dragStartYRef = useRef(0);
+  const draggedDividerRef = useRef(null);
+
   useEffect(() => {
     initProtobuf();
+  }, []);
+
+  useEffect(() => {
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  useEffect(() => {
+    const initTimer = setTimeout(() => {
+      handleResize();
+    }, 100);
+
+    return () => clearTimeout(initTimer);
   }, []);
 
   useEffect(() => {
@@ -119,8 +141,13 @@ const Market = () => {
   useEffect(() => {
     initializeCharts();
     window.addEventListener("resize", handleResize);
+    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("mouseup", handleMouseUp);
 
     return () => {
+      window.removeEventListener("resize", handleResize);
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
       candlestickChart.current?.remove();
       macdChart.current?.remove();
       rsiChart.current?.remove();
@@ -129,26 +156,127 @@ const Market = () => {
   }, [token]);
 
   const handleResize = () => {
-    if (candlestickChart.current && candlestickChartContainerRef.current) {
-      candlestickChart.current.applyOptions({
-        width: candlestickChartContainerRef.current.clientWidth,
-        height: window.innerHeight * 0.55,
-      });
-    }
+    const headerHeight =
+      document.querySelector(".market-controls")?.offsetHeight || 0;
+    const availableHeight = window.innerHeight - headerHeight;
+    const containerWidth =
+      candlestickChartContainerRef.current?.clientWidth || 0;
 
-    if (macdChart.current && macdChartContainerRef.current) {
-      macdChart.current.applyOptions({
-        width: macdChartContainerRef.current.clientWidth,
-        height: window.innerHeight * 0.25,
-      });
-    }
+    updateChartSizes(availableHeight, chartHeights, containerWidth);
+  };
 
-    if (rsiChart.current && rsiChartContainerRef.current) {
-      rsiChart.current.applyOptions({
-        width: rsiChartContainerRef.current.clientWidth,
-        height: window.innerHeight * 0.2,
-      });
-    }
+  const handleMouseDown = (e, divider) => {
+    e.preventDefault();
+    isDraggingRef.current = true;
+    dragStartYRef.current = e.clientY;
+    draggedDividerRef.current = divider;
+    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("mouseup", handleMouseUp);
+  };
+
+  const handleMouseMove = (e) => {
+    if (!isDraggingRef.current) return;
+
+    const deltaY = e.clientY - dragStartYRef.current;
+    const availableHeight = window.innerHeight;
+    const deltaPercent = (deltaY / availableHeight) * 100;
+
+    setChartHeights((prevHeights) => {
+      let newHeights = { ...prevHeights };
+      if (draggedDividerRef.current === "macd") {
+        newHeights.candlestick = Math.max(
+          10,
+          Math.min(80, prevHeights.candlestick + deltaPercent)
+        );
+        newHeights.macd = Math.max(
+          10,
+          Math.min(80, prevHeights.macd - deltaPercent)
+        );
+      } else if (draggedDividerRef.current === "rsi") {
+        newHeights.macd = Math.max(
+          10,
+          Math.min(80, prevHeights.macd + deltaPercent)
+        );
+        newHeights.rsi = Math.max(
+          10,
+          Math.min(80, prevHeights.rsi - deltaPercent)
+        );
+      }
+
+      const totalHeight =
+        newHeights.candlestick + newHeights.macd + newHeights.rsi;
+      if (totalHeight > 100) {
+        const scaleFactor = 100 / totalHeight;
+        newHeights.candlestick *= scaleFactor;
+        newHeights.macd *= scaleFactor;
+        newHeights.rsi *= scaleFactor;
+      }
+
+      updateChartSizes(availableHeight, newHeights);
+      return newHeights;
+    });
+
+    dragStartYRef.current = e.clientY;
+  };
+
+  const handleMouseUp = () => {
+    isDraggingRef.current = false;
+    document.removeEventListener("mousemove", handleMouseMove);
+    document.removeEventListener("mouseup", handleMouseUp);
+  };
+
+  const updateChartSizes = (
+    availableHeight,
+    heights = chartHeights,
+    containerWidth
+  ) => {
+    const charts = [
+      {
+        chart: candlestickChart.current,
+        container: candlestickChartContainerRef.current,
+        height: heights.candlestick,
+      },
+      {
+        chart: macdChart.current,
+        container: macdChartContainerRef.current,
+        height: heights.macd,
+      },
+      {
+        chart: rsiChart.current,
+        container: rsiChartContainerRef.current,
+        height: heights.rsi,
+      },
+    ];
+
+    charts.forEach(({ chart, container, height }) => {
+      if (chart && container) {
+        chart.applyOptions({
+          width: containerWidth,
+          height: Math.floor(availableHeight * (height / 100)),
+          rightPriceScale: {
+            visible: true,
+            borderVisible: false,
+          },
+          leftPriceScale: {
+            visible: false,
+          },
+        });
+      }
+    });
+
+    const maxPriceScaleWidth = Math.max(
+      ...charts
+        .map(({ chart }) => chart?.priceScale("right")?.width() || 0)
+        .filter((width) => width > 0)
+    );
+
+    charts.forEach(({ chart }) => {
+      if (chart) {
+        chart.priceScale("right").applyOptions({
+          width: maxPriceScaleWidth,
+        });
+      }
+    });
   };
 
   const initializeCharts = async () => {
@@ -312,6 +440,7 @@ const Market = () => {
         syncTimeRange(candlestickChart.current);
       }, 100);
 
+      handleResize();
       initializeWebSocket();
     } catch (error) {
       console.error("Error initializing charts:", error);
@@ -696,7 +825,7 @@ const Market = () => {
 
   return (
     <div className="market-wrapper">
-      <div className="market-controls">
+      <div className="market-controler">
         <img
           src={BackArrow}
           className="back-button"
@@ -732,9 +861,31 @@ const Market = () => {
         )}
         <CurrentCandleData currentCandle={currentCandle} />
       </div>
-      <div ref={candlestickChartContainerRef} className="chart-container" />
-      <div ref={macdChartContainerRef} className="chart-container" />
-      <div ref={rsiChartContainerRef} className="chart-container" />
+      <div className="charts-container">
+        <div
+          ref={candlestickChartContainerRef}
+          className="chart-container"
+          style={{ height: `${chartHeights.candlestick}%` }}
+        />
+        <div
+          className="chart-divider"
+          onMouseDown={(e) => handleMouseDown(e, "macd")}
+        />
+        <div
+          ref={macdChartContainerRef}
+          className="chart-container"
+          style={{ height: `${chartHeights.macd}%` }}
+        />
+        <div
+          className="chart-divider"
+          onMouseDown={(e) => handleMouseDown(e, "rsi")}
+        />
+        <div
+          ref={rsiChartContainerRef}
+          className="chart-container"
+          style={{ height: `${chartHeights.rsi}%` }}
+        />
+      </div>
     </div>
   );
 };

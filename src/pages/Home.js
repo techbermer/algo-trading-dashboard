@@ -35,7 +35,6 @@ const Home = ({ onLogout }) => {
   const handleMarketSelect = (option) => {
     setSelectedMarket(option.label);
     setIsDropdownOpen(false);
-    console.log("market selected", token);
     navigate("/market", { state: { instrumentKey: option.value, token } });
   };
 
