@@ -4,5 +4,7 @@ export const REDIRECT_URI = "http://localhost:3000/login";
 export const HISTORY_DATA = "https://api.upstox.com/v2/historical-candle/";
 export const TODAY_DATA =
   "https://api.upstox.com/v2/historical-candle/intraday/";
+export const WEBSOCKET_URL =
+  "https://api-v2.upstox.com/feed/market-data-feed/authorize";
 export const AUTH_URL =
   "https://api.upstox.com/v2/login/authorization/dialog?response_type=code&client_id=";

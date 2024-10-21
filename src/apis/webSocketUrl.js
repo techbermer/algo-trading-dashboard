@@ -1,11 +1,13 @@
-export const getUrl = async (token) => {
-  const apiUrl = "https://api-v2.upstox.com/feed/market-data-feed/authorize";
+import { WEBSOCKET_URL } from "../config";
+import { getToken } from "../services/accessTokenHandler";
+
+export const getUrl = async () => {
   let headers = {
     "Content-type": "application/json",
-    Authorization: "Bearer " + token,
+    Authorization: `Bearer ${getToken()}`,
   };
 
-  const response = await fetch(apiUrl, {
+  const response = await fetch(WEBSOCKET_URL, {
     method: "GET",
     headers: headers,
   });

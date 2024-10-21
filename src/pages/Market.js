@@ -554,7 +554,7 @@ const Market = ({ onLogout }) => {
     };
 
     try {
-      const wsUrl = await getUrl(token);
+      const wsUrl = await getUrl();
       websocket.current = new WebSocket(wsUrl);
 
       websocket.current.onopen = () => {
