@@ -325,6 +325,7 @@ const Market = ({ onLogout }) => {
     )
       return;
 
+    // Create candlestick chart
     candlestickChart.current = createChart(
       candlestickChartContainerRef.current,
       {
@@ -341,6 +342,7 @@ const Market = ({ onLogout }) => {
       ...CANDLESTICK_SERIES_CONFIG,
     });
 
+    // Create MACD chart
     macdChart.current = createChart(macdChartContainerRef.current, {
       ...commonChartOptions,
       width: macdChartContainerRef.current.clientWidth,
@@ -351,19 +353,111 @@ const Market = ({ onLogout }) => {
       ...MACD_SERIES_CONFIG,
     });
 
+    // Create RSI chart
     rsiChart.current = createChart(rsiChartContainerRef.current, {
       ...commonChartOptions,
       width: rsiChartContainerRef.current.clientWidth,
       height: window.innerHeight * 0.2,
     });
 
-    rsiSeries.current = rsiChart?.current?.addLineSeries({
+    rsiSeries.current = rsiChart.current.addLineSeries({
       ...RSI_SERIES_CONFIG,
     });
 
+    // Sync Crosshairs
+    function getCrosshairDataPoint(series, param) {
+      if (!param.time) return null;
+      const dataPoint = param.seriesData.get(series);
+      return dataPoint || null;
+    }
+
+    function syncCrosshair(targetChart, targetSeries, dataPoint) {
+      if (dataPoint) {
+        targetChart.setCrosshairPosition(
+          dataPoint.value,
+          dataPoint.time,
+          targetSeries
+        );
+      } else {
+        targetChart.clearCrosshairPosition();
+      }
+    }
+
+    // Subscribe to crosshair moves
+    const subscribeToCrosshairMoves = () => {
+      candlestickChart.current.subscribeCrosshairMove((param) => {
+        const dataPoint = getCrosshairDataPoint(
+          candlestickSeries.current,
+          param
+        );
+        syncCrosshair(macdChart.current, macdSeries.current, dataPoint);
+        syncCrosshair(rsiChart.current, rsiSeries.current, dataPoint);
+      });
+
+      macdChart.current.subscribeCrosshairMove((param) => {
+        const dataPoint = getCrosshairDataPoint(macdSeries.current, param);
+        syncCrosshair(
+          candlestickChart.current,
+          candlestickSeries.current,
+          dataPoint
+        );
+        syncCrosshair(rsiChart.current, rsiSeries.current, dataPoint);
+      });
+
+      rsiChart.current.subscribeCrosshairMove((param) => {
+        const dataPoint = getCrosshairDataPoint(rsiSeries.current, param);
+        syncCrosshair(
+          candlestickChart.current,
+          candlestickSeries.current,
+          dataPoint
+        );
+        syncCrosshair(macdChart.current, macdSeries.current, dataPoint);
+      });
+    };
+
+    subscribeToCrosshairMoves();
+
+    // Sync Time Ranges
+    const syncTimeRange = (sourceChart) => {
+      if (!sourceChart || !sourceChart.timeScale()) return;
+
+      const visibleRange = sourceChart.timeScale().getVisibleRange();
+      if (!visibleRange) return;
+
+      const charts = [
+        candlestickChart.current,
+        macdChart.current,
+        rsiChart.current,
+      ];
+
+      charts.forEach((chart) => {
+        if (chart && chart.timeScale()) {
+          try {
+            chart.timeScale().setVisibleRange(visibleRange);
+          } catch (error) {
+            console.error("Error setting visible range for chart:", error);
+          }
+        }
+      });
+    };
+
+    const setupChartSubscriptions = () => {
+      const charts = [
+        candlestickChart.current,
+        macdChart.current,
+        rsiChart.current,
+      ];
+
+      charts.forEach((chart) => {
+        chart?.timeScale()?.subscribeVisibleTimeRangeChange(() => {
+          setTimeout(() => syncTimeRange(chart), 50);
+        });
+      });
+    };
+
+    // Fetch and Set Data
     try {
       const initialData = await fetchIntradayCandleData();
-
       if (!initialData || initialData.length === 0) {
         console.error("No initial data received");
         return;
@@ -384,98 +478,29 @@ const Market = ({ onLogout }) => {
 
       const superTrendResult = calculateSuperTrend(sortedData);
 
-      upperBandSeries.current = candlestickChart?.current?.addLineSeries({
-        ...SUPERTREND_UPPERBAND_CONFIG,
-      });
+      // Only add supertrend bands if we have data
+      if (superTrendResult.length) {
+        upperBandSeries.current = candlestickChart.current.addLineSeries({
+          ...SUPERTREND_UPPERBAND_CONFIG,
+        });
+        lowerBandSeries.current = candlestickChart.current.addLineSeries({
+          ...SUPERTREND_LOWERBAND_CONFIG,
+        });
 
-      lowerBandSeries.current = candlestickChart?.current?.addLineSeries({
-        ...SUPERTREND_LOWERBAND_CONFIG,
-      });
+        const validUpperBandData = superTrendResult
+          .filter((item) => item.upper !== null && item.trend === "down")
+          .map((item) => ({ time: item.time, value: item.upper }));
 
-      const validUpperBandData = superTrendResult
-        .filter((item) => item.upper !== null && item.trend === "down")
-        .map((item) => ({ time: item.time, value: item.upper }));
+        const validLowerBandData = superTrendResult
+          .filter((item) => item.lower !== null && item.trend === "up")
+          .map((item) => ({ time: item.time, value: item.lower }));
 
-      const validLowerBandData = superTrendResult
-        .filter((item) => item.lower !== null && item.trend === "up")
-        .map((item) => ({ time: item.time, value: item.lower }));
-
-      if (validUpperBandData.length > 0) {
         upperBandSeries.current?.setData(validUpperBandData);
-        upperBandSeries.current?.applyOptions({ visible: true });
-      } else {
-        upperBandSeries.current?.applyOptions({ visible: false });
-      }
-
-      if (validLowerBandData.length > 0) {
         lowerBandSeries.current?.setData(validLowerBandData);
-        lowerBandSeries.current?.applyOptions({ visible: true });
-      } else {
-        lowerBandSeries.current?.applyOptions({ visible: false });
       }
 
-      const syncTimeRange = (sourceChart) => {
-        if (!sourceChart || !sourceChart.timeScale()) {
-          console.warn("Source chart or its time scale is not available");
-          return;
-        }
-
-        let visibleRange;
-        try {
-          visibleRange = sourceChart.timeScale().getVisibleRange();
-        } catch (error) {
-          console.warn("Error getting visible range:", error);
-          return;
-        }
-
-        if (!visibleRange) {
-          console.warn("Visible range is not available");
-          return;
-        }
-
-        const charts = [
-          candlestickChart.current,
-          macdChart.current,
-          rsiChart.current,
-        ];
-
-        charts.forEach((chart) => {
-          if (chart && chart.timeScale()) {
-            try {
-              if (chart.timeScale().getVisibleLogicalRange()) {
-                chart.timeScale().setVisibleRange(visibleRange);
-              } else {
-                console.warn(
-                  "Chart has no visible data, skipping synchronization"
-                );
-              }
-            } catch (error) {
-              console.error("Error setting visible range for chart:", error);
-            }
-          }
-        });
-      };
-
-      const setupChartSubscriptions = () => {
-        const charts = [
-          candlestickChart.current,
-          macdChart.current,
-          rsiChart.current,
-        ];
-
-        charts.forEach((chart) => {
-          if (chart && chart.timeScale()) {
-            chart.timeScale().subscribeVisibleTimeRangeChange(() => {
-              setTimeout(() => syncTimeRange(chart), 50);
-            });
-          }
-        });
-      };
-
-      setTimeout(() => {
-        setupChartSubscriptions();
-        syncTimeRange(candlestickChart.current);
-      }, 100);
+      setupChartSubscriptions();
+      syncTimeRange(candlestickChart.current);
 
       handleResize();
       initializeWebSocket();
@@ -742,19 +767,19 @@ const Market = ({ onLogout }) => {
 
     const latestSuperTrend = updatedSuperTrend[updatedSuperTrend.length - 1];
     if (latestSuperTrend) {
-      upperBandSeries.current.update({
+      upperBandSeries.current?.update({
         time: latestSuperTrend.time,
         value: latestSuperTrend.upper,
       });
-      upperBandSeries.current.applyOptions({
+      upperBandSeries.current?.applyOptions({
         visible: latestSuperTrend.trend === "down",
       });
 
-      lowerBandSeries.current.update({
+      lowerBandSeries.current?.update({
         time: latestSuperTrend.time,
         value: latestSuperTrend.lower,
       });
-      lowerBandSeries.current.applyOptions({
+      lowerBandSeries.current?.applyOptions({
         visible: latestSuperTrend.trend === "up",
       });
     }
@@ -880,7 +905,7 @@ const Market = ({ onLogout }) => {
           src={BackArrow}
           className="back-button"
           alt="back"
-          onClick={() => navigate(-1)}
+          onClick={() => navigate("/")}
         />
         <div className="market-list-container">
           <button
