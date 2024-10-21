@@ -325,7 +325,6 @@ const Market = ({ onLogout }) => {
     )
       return;
 
-    // Create candlestick chart
     candlestickChart.current = createChart(
       candlestickChartContainerRef.current,
       {
@@ -342,7 +341,6 @@ const Market = ({ onLogout }) => {
       ...CANDLESTICK_SERIES_CONFIG,
     });
 
-    // Create MACD chart
     macdChart.current = createChart(macdChartContainerRef.current, {
       ...commonChartOptions,
       width: macdChartContainerRef.current.clientWidth,
@@ -353,7 +351,6 @@ const Market = ({ onLogout }) => {
       ...MACD_SERIES_CONFIG,
     });
 
-    // Create RSI chart
     rsiChart.current = createChart(rsiChartContainerRef.current, {
       ...commonChartOptions,
       width: rsiChartContainerRef.current.clientWidth,
@@ -364,7 +361,6 @@ const Market = ({ onLogout }) => {
       ...RSI_SERIES_CONFIG,
     });
 
-    // Sync Crosshairs
     function getCrosshairDataPoint(series, param) {
       if (!param.time) return null;
       const dataPoint = param.seriesData.get(series);
@@ -383,7 +379,6 @@ const Market = ({ onLogout }) => {
       }
     }
 
-    // Subscribe to crosshair moves
     const subscribeToCrosshairMoves = () => {
       candlestickChart.current.subscribeCrosshairMove((param) => {
         const dataPoint = getCrosshairDataPoint(
@@ -417,7 +412,6 @@ const Market = ({ onLogout }) => {
 
     subscribeToCrosshairMoves();
 
-    // Sync Time Ranges
     const syncTimeRange = (sourceChart) => {
       if (!sourceChart || !sourceChart.timeScale()) return;
 
@@ -455,7 +449,6 @@ const Market = ({ onLogout }) => {
       });
     };
 
-    // Fetch and Set Data
     try {
       const initialData = await fetchIntradayCandleData();
       if (!initialData || initialData.length === 0) {
@@ -478,7 +471,6 @@ const Market = ({ onLogout }) => {
 
       const superTrendResult = calculateSuperTrend(sortedData);
 
-      // Only add supertrend bands if we have data
       if (superTrendResult.length) {
         upperBandSeries.current = candlestickChart.current.addLineSeries({
           ...SUPERTREND_UPPERBAND_CONFIG,
