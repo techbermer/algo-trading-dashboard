@@ -880,7 +880,7 @@ const Market = ({ onLogout }) => {
           src={BackArrow}
           className="back-button"
           alt="back"
-          onClick={() => navigate(-1)}
+          onClick={() => navigate("/")}
         />
         <div className="market-list-container">
           <button
