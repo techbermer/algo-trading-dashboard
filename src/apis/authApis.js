@@ -1,4 +1,4 @@
-import { API_KEY, API_SECRET, REDIRECT_URI, AUTH_URL } from "../config";
+import { BASE_URL, API_KEY, REDIRECT_URI, AUTH_URL, LOGOUT } from "../config";
 
 export const generateAuthUrl = () => {
   const client_id = encodeURIComponent(API_KEY);
@@ -8,21 +8,25 @@ export const generateAuthUrl = () => {
 
 export async function getAccessToken({ authorizationCode }) {
   const response = await fetch(
-    "https://api.upstox.com/v2/login/authorization/token",
+    `${BASE_URL}/api/v1/authentication/get_access_token`,
     {
       method: "POST",
       headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
+        "Content-Type": "application/json",
       },
-      body: new URLSearchParams({
-        code: authorizationCode,
-        client_id: API_KEY,
-        client_secret: API_SECRET,
-        redirect_uri: REDIRECT_URI,
-        grant_type: "authorization_code",
-      }),
+      body: JSON.stringify({ code: authorizationCode }),
     }
   );
-
+  console.log("hi", response);
   return response.json();
+}
+
+export async function logout() {
+  const response = await fetch(`${BASE_URL}${LOGOUT}`, {
+    method: "DELETE",
+    headers: {
+      "Content-Type": "application/json",
+    },
+  });
+  return response;
 }
