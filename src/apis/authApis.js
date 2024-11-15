@@ -8,7 +8,7 @@ export const generateAuthUrl = () => {
 
 export async function getAccessToken({ authorizationCode }) {
   const response = await fetch(
-    `${BASE_URL}/api/v1/authentication/get_access_token`,
+    `${BASE_URL}api/v1/authentication/get_access_token`,
     {
       method: "POST",
       headers: {
