@@ -17,7 +17,7 @@ export async function getAccessToken({ authorizationCode }) {
       body: JSON.stringify({ code: authorizationCode }),
     }
   );
-  console.log("hi", response);
+
   return response.json();
 }
 
