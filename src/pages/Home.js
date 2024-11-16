@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { logout } from "../apis/authApis";
+// import { logout } from "../apis/authApis";
 import { startMarket, stopMarket } from "../apis/marketDataApis";
 import HomeDecorImg from "../assets/images/HomeDecorativeImg.png";
 import BlackBackgroundImg from "../assets/images/HomeBackgroundImg.png";
@@ -59,18 +59,19 @@ const Home = ({ onLogout }) => {
   };
 
   const handleLogout = async () => {
-    try {
-      const response = await logout();
-      if (response.ok) {
-        setToastMessage("Market stopped");
-        setToastType("error");
-        onLogout();
-      } else {
-        console.error("Failed to logout");
-      }
-    } catch (error) {
-      console.error("Error during logout:", error);
-    }
+    onLogout();
+    // try {
+    //   const response = await logout();
+    //   if (response.ok) {
+    //     setToastMessage("Market stopped");
+    //     setToastType("error");
+    //     onLogout();
+    //   } else {
+    //     console.error("Failed to logout");
+    //   }
+    // } catch (error) {
+    //   console.error("Error during logout:", error);
+    // }
   };
 
   const start_Market = async () => {
