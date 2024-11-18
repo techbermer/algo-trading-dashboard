@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 // import { logout } from "../apis/authApis";
+import { getUrl } from "../apis/webSocketUrl";
 import { startMarket, stopMarket } from "../apis/marketDataApis";
 import HomeDecorImg from "../assets/images/HomeDecorativeImg.png";
 import BlackBackgroundImg from "../assets/images/HomeBackgroundImg.png";
@@ -161,6 +162,20 @@ const Home = ({ onLogout }) => {
       return () => clearTimeout(timer);
     }
   }, [toastMessage]);
+
+  useEffect(() => {
+    initializeWebSocket();
+  }, []);
+
+  const initializeWebSocket = async () => {
+    try {
+      await getUrl();
+    } catch (error) {
+      if (error.message === "Token expired") {
+        onLogout("Session expired, please re-login");
+      }
+    }
+  };
 
   return (
     <div className="home-wrapper">
